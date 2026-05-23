@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="katex.min.css">
+  <script defer src="katex.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="popup.js"></script>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div id="header">
+    <div id="header-left">
+      <div id="logo">
+        <svg viewBox="0 0 36 36" fill="none" width="30" height="30">
+          <circle cx="18" cy="18" r="10" fill="url(#pg)"/>
+          <ellipse cx="18" cy="18" rx="16.5" ry="5" stroke="url(#rg)" stroke-width="2" fill="none" transform="rotate(-20 18 18)"/>
+          <defs>
+            <radialGradient id="pg" cx="40%" cy="35%" r="65%">
+              <stop offset="0%" stop-color="#c8c8d0"/>
+              <stop offset="60%" stop-color="#8888a0"/>
+              <stop offset="100%" stop-color="#3a3a50"/>
+            </radialGradient>
+            <linearGradient id="rg" x1="0" y1="0" x2="36" y2="0" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="rgba(200,200,210,0)"/>
+              <stop offset="40%" stop-color="rgba(200,200,210,0.7)"/>
+              <stop offset="60%" stop-color="rgba(200,200,210,0.7)"/>
+              <stop offset="100%" stop-color="rgba(200,200,210,0)"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <div id="brand-text">
+        <div id="pluto-title">PLUTO</div>
+        <div id="subtitle">your study partner</div>
+      </div>
+    </div>
+    <div id="header-right">
+      <div id="streak-pill">
+        <span>🔥</span><span id="streak-count">0</span>
+      </div>
+      <div id="auto-pill" class="hidden">
+        <span class="pulse-dot"></span><span>AUTO</span>
+      </div>
+      <button id="btn-open-full" title="Open in full window" style="background:transparent;border:1px solid var(--b1);border-radius:7px;color:var(--mid);font-size:10px;font-weight:700;padding:3px 7px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif;letter-spacing:.3px;">↗</button>
+      <div class="dot" id="dot-silver"></div>
+      <div class="dot" id="dot-blue"></div>
+    </div>
+  </div>
+
+  <!-- BRAIN PANEL -->
+  <div id="brain-panel" class="brain-panel">
+    <div class="brain-header" id="brain-toggle">
+      <div class="brain-title">
+        <span class="brain-icon">🧠</span>
+        <span class="brain-label">SHARED BRAIN</span>
+      </div>
+      <div class="brain-summary">
+        <span id="brain-size">—</span> questions
+        <span class="brain-chevron">▾</span>
+      </div>
+    </div>
+    <div class="brain-body" id="brain-body">
+      <div class="brain-stat-row">
+        <div class="brain-stat">
+          <div class="brain-stat-num" id="brain-asked">0</div>
+          <div class="brain-stat-label">questions you've asked</div>
+        </div>
+        <div class="brain-stat">
+          <div class="brain-stat-num" id="brain-matched">0</div>
+          <div class="brain-stat-label">matches you've received</div>
+        </div>
+        <div class="brain-stat">
+          <div class="brain-stat-num" id="brain-helped">~0</div>
+          <div class="brain-stat-label">est. students you've helped</div>
+        </div>
+      </div>
+      <div id="brain-empty-msg" class="brain-empty" style="display:none">Ask your first question to start contributing to the brain</div>
+      <div class="brain-recent" id="brain-recent">
+        <div class="brain-recent-title">YOUR LAST QUESTION MATCHED</div>
+        <div id="brain-recent-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <canvas id="star-canvas"></canvas>
+  <div id="chat-box"></div>
+
+  <!-- BOTTOM SHEET — slides up over chat when active -->
+  <div id="sheet-backdrop" class="hidden"></div>
+  <div id="bottom-sheet" class="hidden">
+    <div id="sheet-handle"></div>
+    <div id="sheet-header">
+      <span id="sheet-title"></span>
+      <button id="sheet-close">✕</button>
+    </div>
+    <div id="sheet-body"></div>
+  </div>
+
+  <!-- INPUT AREA -->
+  <div id="input-area">
+    <!-- Feature bar: two rows -->
+    <div id="feat-bar">
+      <!-- Row 1: 6 big labeled primary buttons -->
+      <div id="feat-row-primary">
+        <button class="feat-btn feat-primary" id="btn-study"    data-tip="Study Page">  <span class="feat-icon">⚡</span><span class="feat-label">Study</span></button>
+        <button class="feat-btn feat-primary" id="btn-tutor"    data-tip="Tutor Mode">  <span class="feat-icon">🎓</span><span class="feat-label">Tutor</span></button>
+        <button class="feat-btn feat-primary" id="btn-automate" data-tip="Automate">    <span class="feat-icon">🤖</span><span class="feat-label">Auto</span></button>
+        <button class="feat-btn feat-primary" id="btn-flash"    data-tip="Flashcards">  <span class="feat-icon">🃏</span><span class="feat-label">Cards</span></button>
+        <button class="feat-btn feat-primary" id="btn-test"     data-tip="Practice Test"><span class="feat-icon">📝</span><span class="feat-label">Test</span></button>
+        <button class="feat-btn feat-primary" id="btn-planner"  data-tip="Task Planner"><span class="feat-icon">📅</span><span class="feat-label">Plan</span></button>
+      </div>
+      <!-- Row 2: 8 small secondary icon buttons -->
+      <div id="feat-row-secondary">
+        <button class="feat-btn" id="btn-pdf"     data-tip="Scan PDF">📄</button>
+        <button class="feat-btn" id="btn-podcast" data-tip="Make Podcast">🎙️</button>
+        <button class="feat-btn" id="btn-vocab"   data-tip="Vocab Builder">📖</button>
+        <button class="feat-btn" id="btn-grade"   data-tip="Grade Calc">🧮</button>
+        <button class="feat-btn" id="btn-timer"   data-tip="Focus Timer">⏱️</button>
+        <button class="feat-btn" id="btn-mood"    data-tip="Focus Sounds">🎵</button>
+        <button class="feat-btn" id="btn-essay"   data-tip="Essay Helper">✍️</button>
+        <button class="feat-btn" id="btn-feynman" data-tip="Feynman Technique">💡</button>
+        <div class="feat-divider"></div>
+        <button class="feat-btn" id="btn-dashboard" data-tip="Dashboard">🏠</button>
+        <button class="feat-btn" id="btn-hub"       data-tip="Research Hub">🌐</button>
+        <button class="feat-btn" id="btn-game"      data-tip="Study Game">🎮</button>
+      </div>
+    </div>
+    <!-- hidden anchor so old btn-research JS listener doesn't throw -->
+    <button id="btn-research" style="display:none"></button>
+    <!-- Text input -->
+    <div id="input-row">
+      <input id="user-input" type="text" placeholder="Ask Pluto anything..." autocomplete="off"/>
+      <button id="send-btn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19V5M5 12l7-7 7 7"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+</body>
+</html>

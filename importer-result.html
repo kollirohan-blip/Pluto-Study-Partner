@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pluto — Result</title>
+  <link rel="stylesheet" href="pluto-shared.css">
+  <style>
+    body { background:#07070f; overflow-x:hidden; }
+    .pluto-page-bg { background:radial-gradient(ellipse 80% 50% at 50% -10%, rgba(56,189,248,.06), transparent), #07070f; }
+    .wrap { max-width:800px; margin:0 auto; padding:36px 24px 100px; }
+
+    .page-eyebrow  { font-size:10px; letter-spacing:2px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; margin-bottom:10px; }
+    .page-heading  { font-size:26px; font-weight:300; color:#fff; letter-spacing:-.4px; margin-bottom:6px; }
+    .page-sub      { font-size:13px; color:rgba(255,255,255,.3); margin-bottom:32px; }
+
+    /* ── Markdown rendering ── */
+    .md-body { color:rgba(255,255,255,.85); line-height:1.8; font-size:15px; font-family:'DM Sans',sans-serif; }
+    .md-body h1 { font-size:22px; font-weight:700; color:#fff; margin:32px 0 14px; letter-spacing:-.3px; }
+    .md-body h2 {
+      font-size:17px; font-weight:600; color:#fff; margin:28px 0 12px;
+      padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,.07);
+    }
+    .md-body h3 { font-size:15px; font-weight:600; color:rgba(255,255,255,.9); margin:20px 0 8px; }
+    .md-body p  { margin:10px 0; }
+    .md-body ul { padding-left:20px; margin:10px 0; list-style:none; }
+    .md-body ul li::before { content:'·'; color:#38bdf8; margin-right:8px; }
+    .md-body ol { padding-left:22px; margin:10px 0; }
+    .md-body li { margin:6px 0; }
+    .md-body strong { color:#fff; font-weight:700; }
+    .md-body em     { color:rgba(255,255,255,.7); font-style:italic; }
+    .md-body code   {
+      background:rgba(56,189,248,.1); padding:2px 7px; border-radius:5px;
+      font-family:'DM Mono',monospace; font-size:13px; color:#38bdf8;
+    }
+    .md-body blockquote {
+      border-left:3px solid rgba(56,189,248,.4); padding:8px 16px;
+      margin:14px 0; background:rgba(56,189,248,.05); border-radius:0 8px 8px 0;
+      color:rgba(255,255,255,.6);
+    }
+
+    /* ── Q&A mode ── */
+    .qa-list { display:flex; flex-direction:column; gap:12px; }
+    .qa-pair {
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+      border-radius:14px; padding:18px 20px;
+    }
+    .qa-q { font-size:14px; font-weight:600; color:#fff; margin-bottom:10px; display:flex; gap:10px; align-items:flex-start; }
+    .qa-num { color:#38bdf8; font-family:'DM Mono',monospace; font-size:11px; background:rgba(56,189,248,.12); padding:2px 8px; border-radius:4px; flex-shrink:0; margin-top:1px; }
+    .qa-a { font-size:13px; color:rgba(255,255,255,.5); line-height:1.65; padding-left:4px; border-left:2px solid rgba(255,255,255,.08); margin-left:2px; padding-left:12px; }
+
+    /* ── Flashcard grid ── */
+    .saved-badge {
+      display:inline-flex; align-items:center; gap:8px;
+      background:rgba(79,217,142,.1); border:1px solid rgba(79,217,142,.25);
+      color:#4fd98e; padding:8px 16px; border-radius:10px;
+      font-size:12px; font-family:'DM Mono',monospace; margin-bottom:24px;
+    }
+    .cards-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media(max-width:540px) { .cards-grid { grid-template-columns:1fr; } }
+    .card-item {
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+      border-radius:12px; padding:14px 16px;
+    }
+    .card-num  { font-size:10px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; margin-bottom:6px; }
+    .card-term { font-size:13px; font-weight:600; color:#fff; margin-bottom:6px; line-height:1.4; }
+    .card-def  { font-size:12px; color:rgba(255,255,255,.45); line-height:1.55; }
+
+    /* ── Actions ── */
+    .action-row { display:flex; gap:10px; margin-top:28px; flex-wrap:wrap; }
+    .act-btn {
+      padding:11px 22px; border-radius:10px; font-size:13px; font-weight:700;
+      cursor:pointer; font-family:'DM Sans',sans-serif; border:none; transition:all .18s;
+    }
+    .act-btn.primary { background:#38bdf8; color:#000; }
+    .act-btn.primary:hover { filter:brightness(.9); }
+    .act-btn.ghost { background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); color:#fff; }
+    .act-btn.ghost:hover { background:rgba(255,255,255,.13); }
+  </style>
+</head>
+<body>
+<div class="pluto-page">
+  <div class="pluto-page-bg"></div>
+  <canvas class="pluto-stars-canvas" id="stars"></canvas>
+
+  <header class="pluto-page-header">
+    <button class="pluto-back-btn">← Back</button>
+    <span class="pluto-page-title" id="page-title">RESULT</span>
+    <div style="width:80px"></div>
+  </header>
+
+  <div class="wrap">
+    <div class="page-eyebrow" id="mode-eyebrow">GENERATED</div>
+    <h2 class="page-heading" id="result-heading">Result</h2>
+    <p class="page-sub" id="result-sub"></p>
+    <div id="result-content"></div>
+    <div class="action-row" id="action-row"></div>
+  </div>
+</div>
+<script type="module" src="importer-result.js"></script>
+</body>
+</html>

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pluto — Voice Tutor</title>
+  <link rel="stylesheet" href="pluto-shared.css">
+  <style>
+    body { background:#07070f; overflow:hidden; }
+    body::after {
+      content:''; position:fixed; inset:0; z-index:9999; pointer-events:none; opacity:.025;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size:180px;
+    }
+    .pluto-page-bg { background:radial-gradient(ellipse 70% 50% at 50% 0%, rgba(251,113,133,.06), transparent 60%), #07070f; }
+
+    /* ── PICKER ── */
+    #view-picker { min-height:100vh; }
+    .wrap { max-width:760px; margin:0 auto; padding:36px 24px 80px; }
+    .section-eyebrow { font-size:10px; letter-spacing:2px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; margin-bottom:8px; }
+    .page-heading { font-size:26px; font-weight:300; color:#fff; letter-spacing:-.4px; margin-bottom:6px; }
+    .page-sub { font-size:13px; color:rgba(255,255,255,.3); margin-bottom:28px; }
+    #picker-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:10px; }
+    .picker-card {
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:14px;
+      padding:18px 20px; cursor:pointer; transition:all .2s cubic-bezier(.16,1,.3,1);
+      animation:pluto-fade-up .4s cubic-bezier(.16,1,.3,1) both;
+    }
+    .picker-card:hover { background:rgba(255,255,255,.07); transform:translateY(-2px); }
+    .picker-card-title { font-size:14px; font-weight:600; color:#fff; margin-bottom:4px; }
+    .picker-card-meta  { font-size:11px; color:rgba(255,255,255,.3); font-family:'DM Mono',monospace; }
+
+    /* ── SESSION ── */
+    #view-session {
+      display:none; position:fixed; inset:0; background:#07070f;
+      flex-direction:column; z-index:10;
+    }
+    #session-header {
+      display:flex; align-items:center; gap:14px; padding:14px 22px;
+      border-bottom:1px solid rgba(255,255,255,.05); flex-shrink:0;
+    }
+    .exit-btn {
+      background:transparent; border:1px solid rgba(255,255,255,.08); border-radius:8px;
+      color:rgba(255,255,255,.35); font-size:12px; padding:6px 12px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .15s;
+    }
+    .exit-btn:hover { background:rgba(255,255,255,.06); color:#fff; }
+    #session-set-name { flex:1; font-size:11px; color:rgba(255,255,255,.25); font-family:'DM Mono',monospace; text-align:center; letter-spacing:1px; }
+    #session-progress { font-size:11px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; }
+
+    /* ── Stage ── */
+    #stage {
+      flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:28px; padding:24px 20px 0; overflow:hidden;
+    }
+
+    /* ── Orb ── */
+    #orb-wrap { position:relative; width:180px; height:180px; flex-shrink:0; }
+
+    /* Outer rings */
+    .orb-ring {
+      position:absolute; inset:-20px; border-radius:50%;
+      border:1px solid rgba(251,113,133,.12);
+      animation:ring-breathe 3s ease-in-out infinite;
+    }
+    .orb-ring:nth-child(2) { inset:-36px; border-color:rgba(251,113,133,.07); animation-delay:.4s; }
+    .orb-ring:nth-child(3) { inset:-52px; border-color:rgba(251,113,133,.04); animation-delay:.8s; }
+    @keyframes ring-breathe { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.04);opacity:.6} }
+
+    /* Core orb */
+    #orb {
+      position:absolute; inset:0; border-radius:50%;
+      background:radial-gradient(circle at 38% 35%, rgba(255,180,200,.25) 0%, rgba(180,80,120,.15) 40%, rgba(80,20,60,.08) 100%);
+      box-shadow:
+        0 0 40px rgba(251,113,133,.18),
+        0 0 80px rgba(251,113,133,.08),
+        inset 0 0 30px rgba(255,255,255,.04);
+      border:1px solid rgba(251,113,133,.2);
+      transition:box-shadow .4s ease, background .4s ease, border-color .4s ease;
+      animation:orb-idle 4s ease-in-out infinite;
+    }
+    @keyframes orb-idle {
+      0%,100% { transform:scale(1); }
+      50%      { transform:scale(1.03); }
+    }
+
+    /* Speaking state */
+    #orb-wrap.speaking .orb-ring { animation:ring-speak .6s ease-in-out infinite alternate; }
+    #orb-wrap.speaking .orb-ring:nth-child(2) { animation-delay:.1s; }
+    #orb-wrap.speaking .orb-ring:nth-child(3) { animation-delay:.2s; }
+    @keyframes ring-speak { 0%{transform:scale(1)} 100%{transform:scale(1.08)} }
+    #orb-wrap.speaking #orb {
+      animation:orb-speak .5s ease-in-out infinite alternate;
+      box-shadow:0 0 60px rgba(251,113,133,.35), 0 0 120px rgba(251,113,133,.15), inset 0 0 30px rgba(255,255,255,.06);
+    }
+    @keyframes orb-speak { 0%{transform:scale(1)} 100%{transform:scale(1.06)} }
+
+    /* Listening state */
+    #orb-wrap.listening .orb-ring { border-color:rgba(107,159,255,.2); animation:ring-listen .8s ease-in-out infinite; }
+    #orb-wrap.listening #orb {
+      background:radial-gradient(circle at 38% 35%, rgba(150,180,255,.3) 0%, rgba(80,120,230,.18) 40%, rgba(20,40,120,.08) 100%);
+      border-color:rgba(107,159,255,.35);
+      box-shadow:0 0 60px rgba(107,159,255,.3), 0 0 120px rgba(107,159,255,.12), inset 0 0 30px rgba(107,159,255,.06);
+      animation:orb-listen 1.2s ease-in-out infinite;
+    }
+    @keyframes ring-listen { 0%,100%{transform:scale(1);opacity:.7} 50%{transform:scale(1.12);opacity:1} }
+    @keyframes orb-listen  { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+
+    /* Correct state */
+    #orb-wrap.correct #orb {
+      background:radial-gradient(circle at 38% 35%, rgba(150,255,200,.35) 0%, rgba(50,200,130,.2) 40%, rgba(10,80,50,.08) 100%);
+      border-color:rgba(79,217,142,.45);
+      box-shadow:0 0 70px rgba(79,217,142,.4), 0 0 140px rgba(79,217,142,.15), inset 0 0 30px rgba(79,217,142,.08);
+      animation:orb-correct .4s cubic-bezier(.16,1,.3,1);
+    }
+    @keyframes orb-correct { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
+    #orb-wrap.correct .orb-ring { border-color:rgba(79,217,142,.2); }
+
+    /* Wrong state */
+    #orb-wrap.wrong #orb {
+      background:radial-gradient(circle at 38% 35%, rgba(255,150,150,.3) 0%, rgba(220,80,80,.18) 40%, rgba(80,20,20,.08) 100%);
+      border-color:rgba(255,95,95,.4);
+      box-shadow:0 0 60px rgba(255,95,95,.3), 0 0 120px rgba(255,95,95,.1), inset 0 0 30px rgba(255,95,95,.06);
+      animation:orb-wrong .4s cubic-bezier(.36,.07,.19,.97);
+    }
+    @keyframes orb-wrong { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+    #orb-wrap.wrong .orb-ring { border-color:rgba(255,95,95,.2); }
+
+    /* ── Status label ── */
+    #status-label {
+      font-size:11px; letter-spacing:2px; color:rgba(255,255,255,.25);
+      font-family:'DM Mono',monospace; text-transform:uppercase; margin-top:-6px;
+    }
+
+    /* ── Question card ── */
+    #question-card {
+      width:100%; max-width:560px; background:rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.07); border-radius:18px;
+      padding:22px 24px; text-align:center; min-height:72px;
+      display:flex; align-items:center; justify-content:center;
+    }
+    #question-text { font-size:16px; font-weight:300; color:rgba(255,255,255,.85); line-height:1.55; }
+
+    /* ── Controls ── */
+    #controls { display:flex; gap:10px; align-items:center; }
+    .ctrl-btn {
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:10px;
+      color:rgba(255,255,255,.6); font-size:12px; font-weight:500; padding:10px 20px;
+      cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .18s;
+    }
+    .ctrl-btn:hover { background:rgba(255,255,255,.11); color:#fff; }
+    .ctrl-btn:disabled { opacity:.25; cursor:default; }
+    #mic-btn {
+      width:52px; height:52px; border-radius:50%;
+      background:rgba(251,113,133,.12); border:1px solid rgba(251,113,133,.3);
+      color:rgba(255,255,255,.8); font-size:20px; cursor:pointer; transition:all .2s;
+      display:flex; align-items:center; justify-content:center;
+    }
+    #mic-btn:hover { background:rgba(251,113,133,.22); }
+    #mic-btn.listening { background:rgba(107,159,255,.2); border-color:rgba(107,159,255,.5); animation:mic-pulse 1s ease-in-out infinite; }
+    @keyframes mic-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(107,159,255,.3)} 50%{box-shadow:0 0 0 10px rgba(107,159,255,0)} }
+
+    /* ── Transcript ── */
+    #transcript-wrap {
+      width:100%; border-top:1px solid rgba(255,255,255,.05);
+      height:160px; flex-shrink:0; overflow-y:auto; padding:12px 20px 16px;
+    }
+    #transcript { display:flex; flex-direction:column; gap:8px; }
+    .tx-line { display:flex; gap:10px; align-items:flex-start; animation:pluto-fade-up .3s cubic-bezier(.16,1,.3,1) both; }
+    .tx-speaker { font-size:10px; letter-spacing:1.5px; font-family:'DM Mono',monospace; padding:3px 8px; border-radius:5px; flex-shrink:0; margin-top:1px; }
+    .tx-speaker.pluto { background:rgba(251,113,133,.12); color:rgba(251,113,133,.9); }
+    .tx-speaker.you   { background:rgba(107,159,255,.12); color:rgba(107,159,255,.9); }
+    .tx-text { font-size:13px; color:rgba(255,255,255,.55); line-height:1.5; }
+
+    /* ── Summary overlay ── */
+    #view-summary {
+      position:fixed; inset:0; background:#07070f; z-index:20;
+      display:none; flex-direction:column; align-items:center; justify-content:center;
+      text-align:center; padding:32px;
+    }
+    .summary-icon  { font-size:52px; margin-bottom:20px; }
+    .summary-title { font-size:28px; font-weight:300; color:#fff; letter-spacing:-.4px; margin-bottom:8px; }
+    .summary-sub   { font-size:14px; color:rgba(255,255,255,.35); margin-bottom:32px; }
+    .summary-stats { display:flex; gap:28px; justify-content:center; margin-bottom:36px; }
+    .summary-stat-val { font-size:32px; font-weight:700; color:#fff; font-family:'DM Mono',monospace; line-height:1; }
+    .summary-stat-lbl { font-size:11px; color:rgba(255,255,255,.3); margin-top:5px; }
+    .sum-btn {
+      background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:10px;
+      color:#fff; font-size:13px; font-weight:600; padding:12px 26px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .18s; margin:0 5px;
+    }
+    .sum-btn:hover { background:rgba(255,255,255,.13); }
+    .sum-btn.primary { background:#fff; color:#000; border-color:#fff; }
+    .sum-btn.primary:hover { filter:brightness(.94); }
+
+    /* no-speech support banner */
+    #no-speech-banner {
+      display:none; width:100%; max-width:560px; padding:12px 18px; border-radius:11px;
+      background:rgba(232,184,75,.07); border:1px solid rgba(232,184,75,.2);
+      font-size:12px; color:rgba(232,184,75,.8); text-align:center; line-height:1.55;
+    }
+
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+<div class="pluto-page">
+  <div class="pluto-page-bg"></div>
+  <canvas class="pluto-stars-canvas" id="stars"></canvas>
+
+  <!-- ── PICKER ── -->
+  <div id="view-picker">
+    <header class="pluto-page-header">
+      <button class="pluto-back-btn" onclick="history.back()">← Back</button>
+      <span class="pluto-page-title">PLUTO VOICE TUTOR</span>
+      <div style="width:80px"></div>
+    </header>
+    <div class="wrap">
+      <div class="section-eyebrow">Voice Mode</div>
+      <h2 class="page-heading">Choose a set</h2>
+      <p class="page-sub">Pluto will quiz you verbally — speak your answers out loud.</p>
+      <div id="picker-grid"></div>
+      <div id="no-speech-banner" style="margin-top:20px">
+        ⚠️ Your browser doesn't support the Web Speech API. Try Chrome or Edge for voice mode.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SESSION ── -->
+  <div id="view-session">
+    <div id="session-header">
+      <button class="exit-btn" id="exit-btn">✕ End</button>
+      <div id="session-set-name">—</div>
+      <div id="session-progress">0 / 0</div>
+    </div>
+
+    <div id="stage">
+      <!-- Orb -->
+      <div id="orb-wrap">
+        <div class="orb-ring"></div>
+        <div class="orb-ring"></div>
+        <div class="orb-ring"></div>
+        <div id="orb"></div>
+      </div>
+
+      <div id="status-label">Ready</div>
+
+      <!-- Current question -->
+      <div id="question-card">
+        <div id="question-text">…</div>
+      </div>
+
+      <!-- Controls -->
+      <div id="controls">
+        <button class="ctrl-btn" id="pause-btn">⏸ Pause</button>
+        <button id="mic-btn" title="Hold to speak">🎤</button>
+        <button class="ctrl-btn" id="skip-btn">Skip →</button>
+      </div>
+    </div>
+
+    <!-- Transcript -->
+    <div id="transcript-wrap">
+      <div id="transcript"></div>
+    </div>
+  </div>
+
+  <!-- ── SUMMARY ── -->
+  <div id="view-summary">
+    <div class="summary-icon">🎙️</div>
+    <h2 class="summary-title" id="summary-title">Session complete!</h2>
+    <p class="summary-sub" id="summary-sub">—</p>
+    <div class="summary-stats">
+      <div>
+        <div class="summary-stat-val" id="sum-correct">0</div>
+        <div class="summary-stat-lbl">correct</div>
+      </div>
+      <div>
+        <div class="summary-stat-val" id="sum-wrong">0</div>
+        <div class="summary-stat-lbl">missed</div>
+      </div>
+      <div>
+        <div class="summary-stat-val" id="sum-total">0</div>
+        <div class="summary-stat-lbl">asked</div>
+      </div>
+    </div>
+    <div>
+      <button class="sum-btn" id="sum-again">Go again</button>
+      <button class="sum-btn primary" id="sum-done">Done</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="kai.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST http://localhost:3000/retrieve-standards -H \"Content-Type: application/json\" -d \"{\\\\\"question\\\\\":\\\\\"equilibrium constant and ICE tables\\\\\",\\\\\"system\\\\\":\\\\\"ap\\\\\",\\\\\"course\\\\\":\\\\\"ap-chemistry\\\\\",\\\\\"k\\\\\":4}\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Kolli\\OneDrive\\Desktop\\Aria-server"
+    ]
+  }
+}

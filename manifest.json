@@ -1,0 +1,79 @@
+{
+  "manifest_version": 3,
+  "name": "Pluto: AI Study Partner",
+  "version": "2.0",
+  "permissions": [
+    "sidePanel",
+    "tabs",
+    "storage",
+    "scripting",
+    "activeTab",
+    "tabCapture"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+    "<all_urls>"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": true
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src http://localhost:3000 http://127.0.0.1:3000 https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com wss://*.firebaseio.com https://www.youtube.com https://i.ytimg.com"
+  },
+  "action": {
+    "default_title": "Open Pluto"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "research.html",
+        "research.js",
+        "game.html",
+        "game.js",
+        "chat.html",
+        "chat.js",
+        "chat.css",
+        "katex.min.js",
+        "katex.min.css",
+        "dashboard.html",
+        "dashboard.js",
+        "study.html",
+        "study.js",
+        "learn.html",
+        "learn.js",
+        "test.html",
+        "test.js",
+        "match.html",
+        "match.js",
+        "kai.html",
+        "kai.js",
+        "importer.html",
+        "importer.js",
+        "importer-result.html",
+        "importer-result.js",
+        "live.html",
+        "live.js",
+        "pluto-shared.js",
+        "pluto-shared.css"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

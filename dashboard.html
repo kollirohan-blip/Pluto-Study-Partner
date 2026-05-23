@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pluto — Dashboard</title>
+  <link rel="stylesheet" href="pluto-shared.css">
+  <style>
+    body { overflow-x: hidden; background: #07070f; }
+
+    /* Grain overlay — adds depth, feels hand-made */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+      opacity: .028;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 180px;
+    }
+
+    /* Override shared bg to match #07070f */
+    .pluto-page-bg {
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,100,247,.08), transparent),
+                  radial-gradient(ellipse 60% 40% at 80% 60%, rgba(176,140,200,.04), transparent),
+                  #07070f;
+    }
+
+    #app {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 56px 32px 100px;
+    }
+
+    /* ── Header tweaks ─────────────────────────────── */
+    .pluto-page-header { background: rgba(7,7,15,.6); border-color: rgba(255,255,255,.05); }
+
+    #date-display {
+      font-size: 11px;
+      color: var(--dim);
+      font-family: 'DM Mono', monospace;
+      letter-spacing: .5px;
+    }
+
+    #username-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 13px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text);
+      transition: all .18s;
+    }
+    #username-chip:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.12); }
+    #username-chip input {
+      background: transparent; border: none; outline: none;
+      color: #fff; font-size: 12px; font-family: 'DM Sans', sans-serif;
+      width: 90px;
+    }
+
+    /* ── Hero ──────────────────────────────────────── */
+    #hero {
+      padding: 48px 0 64px;
+    }
+
+    .hero-eyebrow {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: var(--dim);
+      font-family: 'DM Mono', monospace;
+      margin-bottom: 16px;
+    }
+
+    .hero-headline {
+      font-size: 68px;
+      font-weight: 300;
+      letter-spacing: -3px;
+      color: rgba(255,255,255,.9);
+      line-height: 1;
+      margin-bottom: 0;
+    }
+    .hero-headline .name {
+      font-weight: 700;
+      color: #fff;
+      display: inline-block;
+    }
+    /* Subtle underline that feels hand-drawn */
+    .hero-headline .name::after {
+      content: '';
+      display: block;
+      height: 3px;
+      width: 100%;
+      margin-top: 4px;
+      background: linear-gradient(90deg, var(--accent), transparent 80%);
+      border-radius: 2px;
+      opacity: .5;
+    }
+
+    /* Stat strip — numbers, no boxes */
+    .stat-strip {
+      display: flex;
+      align-items: center;
+      margin: 44px 0 28px;
+      gap: 0;
+    }
+    .stat-item {
+      flex: 1;
+      padding: 0 28px 0 0;
+    }
+    .stat-item + .stat-item {
+      padding-left: 28px;
+      border-left: 1px solid rgba(255,255,255,.06);
+    }
+    .stat-val {
+      display: block;
+      font-size: 38px;
+      font-weight: 500;
+      font-family: 'DM Mono', monospace;
+      color: #fff;
+      line-height: 1;
+      letter-spacing: -1px;
+      transition: color .4s;
+    }
+    .stat-val.blue  { color: #6b9fff; }
+    .stat-val.gold  { color: #e8b84b; }
+    .stat-val.green { color: #4fd98e; }
+    .stat-lbl {
+      display: block;
+      font-size: 11px;
+      color: var(--mid);
+      margin-top: 6px;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 400;
+    }
+
+    /* Brain badge */
+    .brain-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 10px;
+      color: #4fd98e;
+      font-family: 'DM Mono', monospace;
+      letter-spacing: 1.5px;
+    }
+    .brain-badge.offline { color: var(--red); }
+    .badge-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: #4fd98e;
+      animation: blink 2.5s ease-in-out infinite;
+    }
+    .brain-badge.offline .badge-dot { background: var(--red); animation: none; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.15} }
+
+    /* ── Tip ───────────────────────────────────────── */
+    #install-tip {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 18px;
+      background: rgba(79,142,247,.04);
+      border: 1px solid rgba(79,142,247,.1);
+      border-radius: 12px;
+      margin-bottom: 56px;
+    }
+    .tip-ico  { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .tip-body { flex: 1; font-size: 12.5px; color: rgba(255,255,255,.5); line-height: 1.6; }
+    .tip-body strong { color: rgba(255,255,255,.75); font-weight: 500; }
+    #tip-dismiss {
+      background: none; border: none; color: rgba(255,255,255,.2);
+      font-size: 14px; cursor: pointer; padding: 0; transition: color .15s;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    #tip-dismiss:hover { color: rgba(255,255,255,.6); }
+
+    /* ── Section label ─────────────────────────────── */
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: rgba(255,255,255,.18);
+      font-family: 'DM Mono', monospace;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    /* ── Feature grid ───────────────────────────────── */
+    #feat-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 60px;
+    }
+
+    @media (max-width: 760px) {
+      #feat-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 480px) {
+      #feat-grid { grid-template-columns: repeat(2, 1fr); }
+      .hero-headline { font-size: 44px; }
+      .stat-val { font-size: 28px; }
+    }
+
+    .feat-card {
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.065);
+      border-top: 2px solid transparent; /* overridden per-card by JS */
+      border-radius: 14px;
+      padding: 20px 16px 18px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+      animation: pluto-fade-up .45s cubic-bezier(.16,1,.3,1) both;
+      transition: background .2s, border-color .2s, transform .2s cubic-bezier(.16,1,.3,1), box-shadow .2s;
+    }
+    .feat-card:hover {
+      background: rgba(255,255,255,.055);
+      transform: translateY(-3px);
+      box-shadow: 0 10px 28px rgba(0,0,0,.5);
+    }
+    .feat-card:active { transform: translateY(-1px) scale(.97); transition-duration: .08s; }
+
+    .feat-icon {
+      font-size: 26px;
+      line-height: 1;
+      display: block;
+      margin-bottom: 12px;
+    }
+    .feat-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255,255,255,.9);
+      margin-bottom: 4px;
+      letter-spacing: -.1px;
+    }
+    .feat-desc {
+      font-size: 11px;
+      color: rgba(255,255,255,.32);
+      line-height: 1.5;
+    }
+
+    /* Live indicator: small dot next to name */
+    .feat-live-dot {
+      display: inline-block;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: #4fd98e;
+      margin-left: 5px;
+      vertical-align: middle;
+      position: relative;
+      top: -1px;
+    }
+
+    /* Arrow that appears on hover */
+    .feat-arrow {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      font-size: 14px;
+      color: rgba(255,255,255,.15);
+      transition: color .2s, transform .2s;
+    }
+    .feat-card:hover .feat-arrow {
+      color: rgba(255,255,255,.5);
+      transform: translate(2px, -2px);
+    }
+
+    /* ── Activity ───────────────────────────────────── */
+    #activity-list {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 64px;
+    }
+
+    .act-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      animation: pluto-fade-up .35s cubic-bezier(.16,1,.3,1) both;
+    }
+    .act-item:first-child { border-top: 1px solid rgba(255,255,255,.04); }
+    .act-icon { font-size: 15px; flex-shrink: 0; opacity: .7; }
+    .act-text { flex: 1; font-size: 13px; color: rgba(255,255,255,.55); }
+    .act-time { font-size: 10px; color: rgba(255,255,255,.2); font-family: 'DM Mono', monospace; white-space: nowrap; }
+
+    .act-empty {
+      padding: 32px 0;
+      font-size: 13px;
+      color: rgba(255,255,255,.2);
+      font-style: italic;
+      border-top: 1px solid rgba(255,255,255,.04);
+      border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+
+    /* ── Footer ─────────────────────────────────────── */
+    #dash-footer {
+      font-size: 11px;
+      color: rgba(255,255,255,.12);
+      font-family: 'DM Mono', monospace;
+      letter-spacing: .5px;
+    }
+  </style>
+</head>
+<body>
+<div class="pluto-page">
+  <div class="pluto-page-bg"></div>
+  <canvas class="pluto-stars-canvas" id="stars"></canvas>
+
+  <!-- ── HEADER ──────────────────────────────────── -->
+  <header class="pluto-page-header">
+    <div style="display:flex;align-items:center;gap:11px">
+      <svg class="pluto-logo-svg" viewBox="0 0 36 36" fill="none" width="26" height="26">
+        <circle cx="18" cy="18" r="10" fill="url(#dpg)"/>
+        <ellipse cx="18" cy="18" rx="16.5" ry="5" stroke="url(#drg)" stroke-width="2"
+          fill="none" transform="rotate(-20 18 18)"/>
+        <defs>
+          <radialGradient id="dpg" cx="40%" cy="35%" r="65%">
+            <stop offset="0%"   stop-color="#c8c8d0"/>
+            <stop offset="60%"  stop-color="#8888a0"/>
+            <stop offset="100%" stop-color="#3a3a50"/>
+          </radialGradient>
+          <linearGradient id="drg" x1="0" y1="0" x2="36" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"   stop-color="rgba(200,200,210,0)"/>
+            <stop offset="50%"  stop-color="rgba(200,200,210,0.8)"/>
+            <stop offset="100%" stop-color="rgba(200,200,210,0)"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <span class="pluto-page-title" style="font-size:13px">PLUTO</span>
+    </div>
+
+    <span id="date-display"></span>
+
+    <div id="username-chip" title="Click to change name">
+      <span style="opacity:.5">👤</span>
+      <span id="username-display">—</span>
+    </div>
+  </header>
+
+  <!-- ── MAIN ────────────────────────────────────── -->
+  <div id="app">
+
+    <!-- Hero -->
+    <section id="hero">
+      <div class="hero-eyebrow" id="hero-greeting">GOOD MORNING</div>
+      <h1 class="hero-headline"><span class="name" id="hero-username">loading</span></h1>
+
+      <div class="stat-strip">
+        <div class="stat-item">
+          <span class="stat-val blue" id="stat-brain">—</span>
+          <span class="stat-lbl">brain questions</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val gold" id="stat-xp">—</span>
+          <span class="stat-lbl">total xp</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val green" id="stat-streak">—</span>
+          <span class="stat-lbl">day streak 🔥</span>
+        </div>
+      </div>
+
+      <div class="brain-badge" id="brain-badge">
+        <div class="badge-dot"></div>
+        <span id="brain-status-text">PLUTO BRAIN ONLINE</span>
+      </div>
+    </section>
+
+    <!-- Tip -->
+    <div id="install-tip">
+      <span class="tip-ico">📌</span>
+      <div class="tip-body">
+        <strong>Pin Pluto to your toolbar</strong> for one-click access — click the puzzle piece in Chrome, find Pluto, and hit the pin.
+      </div>
+      <button id="tip-dismiss">✕</button>
+    </div>
+
+    <!-- Features -->
+    <div class="section-label">Features</div>
+    <div id="feat-grid"></div>
+
+    <!-- Activity -->
+    <div class="section-label">Recent activity</div>
+    <div id="activity-list"></div>
+
+    <!-- Footer -->
+    <div id="dash-footer">pluto · ai study partner</div>
+
+  </div>
+</div>
+
+<script type="module" src="dashboard.js"></script>
+</body>
+</html>

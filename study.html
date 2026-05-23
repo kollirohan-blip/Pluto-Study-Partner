@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pluto — Study Sets</title>
+  <link rel="stylesheet" href="pluto-shared.css">
+  <style>
+    body { overflow-x: hidden; background: #07070f; }
+
+    /* Grain */
+    body::after {
+      content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+      opacity: .028;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 180px;
+    }
+
+    .pluto-page-bg {
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,100,247,.07), transparent),
+                  #07070f;
+    }
+
+    .pluto-page-header { background: rgba(7,7,15,.7); border-color: rgba(255,255,255,.05); }
+
+    /* ── Content wrapper ─────────────────────────────── */
+    .wrap { max-width: 900px; margin: 0 auto; padding: 40px 28px 100px; }
+
+    /* ── Library view ────────────────────────────────── */
+    .lib-top {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 36px; gap: 16px; flex-wrap: wrap;
+    }
+    .lib-heading { font-size: 30px; font-weight: 300; color: #fff; margin-bottom: 4px; letter-spacing: -.5px; }
+    .lib-sub     { font-size: 12px; color: rgba(255,255,255,.3); font-family: 'DM Mono', monospace; }
+
+    #sets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+    }
+
+    .set-card {
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 16px; padding: 20px; cursor: pointer;
+      transition: all .22s cubic-bezier(.16,1,.3,1);
+      animation: pluto-fade-up .4s cubic-bezier(.16,1,.3,1) both;
+    }
+    .set-card:hover { background: rgba(255,255,255,.055); transform: translateY(-3px); box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+    .set-card-title { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 5px; }
+    .set-card-meta  { font-size: 11px; color: rgba(255,255,255,.3); margin-bottom: 16px; font-family: 'DM Mono', monospace; }
+    .set-prog-track { height: 3px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; margin-bottom: 7px; }
+    .set-prog-fill  { height: 100%; background: #4fd98e; border-radius: 2px; transition: width .5s; }
+    .set-prog-text  { font-size: 10px; color: rgba(255,255,255,.25); font-family: 'DM Mono', monospace; }
+
+    /* Empty state */
+    #lib-empty { text-align: center; padding: 80px 20px; }
+    .empty-icon  { font-size: 48px; margin-bottom: 18px; display: block; }
+    .empty-title { font-size: 22px; font-weight: 300; color: #fff; margin-bottom: 8px; }
+    .empty-sub   { font-size: 14px; color: rgba(255,255,255,.35); margin-bottom: 32px; line-height: 1.6; }
+    .empty-btns  { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    /* ── Detail view ─────────────────────────────────── */
+    .det-top {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 28px; gap: 16px;
+    }
+    .det-title { font-size: 28px; font-weight: 300; color: #fff; letter-spacing: -.5px; margin-bottom: 5px; }
+    .det-desc  { font-size: 13px; color: rgba(255,255,255,.4); margin-bottom: 4px; }
+    .det-meta  { font-size: 10px; color: rgba(255,255,255,.2); font-family: 'DM Mono', monospace; letter-spacing: .5px; }
+    .det-action-row { display: flex; gap: 8px; flex-shrink: 0; }
+
+    /* Study mode buttons */
+    .mode-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 36px; }
+    .mode-btn {
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 10px; color: rgba(255,255,255,.8); font-size: 13px; font-weight: 600;
+      padding: 10px 18px; cursor: pointer; transition: all .18s;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .mode-btn:hover { background: rgba(255,255,255,.09); color: #fff; }
+    .mode-btn.primary { background: rgba(176,176,200,.12); border-color: rgba(176,176,200,.3); color: var(--accent); }
+    .mode-btn.primary:hover { background: rgba(176,176,200,.2); }
+    .mode-btn.dim { color: rgba(255,255,255,.2); cursor: default; }
+    .mode-btn.dim:hover { background: rgba(255,255,255,.04); color: rgba(255,255,255,.2); }
+
+    /* Card list in detail */
+    .cli {
+      display: flex; align-items: center; gap: 16px;
+      padding: 13px 0; border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+    .cli:first-child { border-top: 1px solid rgba(255,255,255,.04); }
+    .cli-num  { font-size: 10px; color: rgba(255,255,255,.2); font-family: 'DM Mono', monospace; width: 20px; flex-shrink: 0; }
+    .cli-term { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.9); flex: 1; min-width: 0; }
+    .cli-def  { font-size: 13px; color: rgba(255,255,255,.45); flex: 2; min-width: 0; line-height: 1.45; }
+    .mastery-row { display: flex; gap: 4px; flex-shrink: 0; }
+    .mdot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.1); }
+    .mdot.learning { background: #6b9fff; }
+    .mdot.mastered { background: #4fd98e; }
+
+    /* ── Flip overlay ────────────────────────────────── */
+    #view-flip {
+      position: fixed; inset: 0; z-index: 100; background: #07070f;
+      display: flex; flex-direction: column;
+    }
+    .study-topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,.05); flex-shrink: 0;
+    }
+    .study-close-btn {
+      background: transparent; border: 1px solid rgba(255,255,255,.08); border-radius: 8px;
+      color: rgba(255,255,255,.4); font-size: 12px; padding: 6px 13px; cursor: pointer;
+      font-family: 'DM Sans', sans-serif; transition: all .15s;
+    }
+    .study-close-btn:hover { background: rgba(255,255,255,.06); color: #fff; }
+    .study-counter { font-size: 12px; color: rgba(255,255,255,.35); font-family: 'DM Mono', monospace; }
+
+    .flip-stage {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      gap: 24px; padding: 32px 24px;
+    }
+    .nav-arrow {
+      background: transparent; border: 1px solid rgba(255,255,255,.08); border-radius: 50%;
+      width: 44px; height: 44px; color: rgba(255,255,255,.3); font-size: 22px; cursor: pointer;
+      transition: all .15s; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; padding: 0;
+    }
+    .nav-arrow:hover:not(:disabled) { background: rgba(255,255,255,.06); color: #fff; }
+    .nav-arrow:disabled { opacity: .2; cursor: default; }
+
+    /* The 3D flip card */
+    .flip-card-wrap { perspective: 1200px; width: min(500px, 78vw); height: 270px; cursor: pointer; flex-shrink: 0; }
+    .flip-card-inner {
+      width: 100%; height: 100%; position: relative;
+      transform-style: preserve-3d;
+      transition: transform .55s cubic-bezier(.4,0,.2,1);
+    }
+    .flip-card-wrap.flipped .flip-card-inner { transform: rotateY(180deg); }
+
+    .flip-face {
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 22px; padding: 36px 32px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      backface-visibility: hidden; -webkit-backface-visibility: hidden;
+      text-align: center;
+    }
+    .flip-face-back {
+      transform: rotateY(180deg);
+      background: rgba(176,176,200,.04); border-color: rgba(176,176,200,.1);
+    }
+    .flip-face-lbl  { font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,.2); font-family: 'DM Mono', monospace; margin-bottom: 18px; }
+    .flip-face-text { font-size: 21px; font-weight: 400; color: #fff; line-height: 1.5; max-width: 380px; }
+    .flip-hint      { font-size: 10px; color: rgba(255,255,255,.15); margin-top: 14px; font-family: 'DM Mono', monospace; }
+
+    .flip-grade-row { display: flex; gap: 12px; padding: 0 80px 24px; justify-content: center; flex-shrink: 0; }
+    .grade-btn {
+      flex: 1; max-width: 200px; padding: 13px; border-radius: 12px; border: 1px solid;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all .18s;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .grade-btn.again { background: rgba(255,95,95,.07);   border-color: rgba(255,95,95,.2);   color: var(--red); }
+    .grade-btn.got   { background: rgba(94,248,160,.07);  border-color: rgba(94,248,160,.2);  color: #4fd98e; }
+    .grade-btn:hover { filter: brightness(1.2); transform: translateY(-1px); }
+
+    /* Progress bar */
+    .study-prog-bar  { height: 3px; background: rgba(255,255,255,.05); flex-shrink: 0; }
+    .study-prog-fill { height: 100%; background: var(--accent); transition: width .4s ease; }
+
+    /* ── Write overlay ───────────────────────────────── */
+    #view-write {
+      position: fixed; inset: 0; z-index: 100; background: #07070f;
+      display: flex; flex-direction: column;
+    }
+    .write-stage {
+      flex: 1; max-width: 580px; width: 100%; margin: 0 auto;
+      display: flex; flex-direction: column; justify-content: center;
+      gap: 18px; padding: 40px 32px;
+    }
+    .write-prompt-lbl { font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,.2); font-family: 'DM Mono', monospace; }
+    .write-prompt     { font-size: 22px; font-weight: 300; color: #fff; line-height: 1.45; }
+    .write-input {
+      width: 100%; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 12px; color: #fff; font-size: 16px; font-family: 'DM Sans', sans-serif;
+      padding: 14px 18px; outline: none; transition: border .18s;
+    }
+    .write-input:focus   { border-color: rgba(255,255,255,.25); }
+    .write-input.correct { border-color: #4fd98e; }
+    .write-input.wrong   { border-color: var(--red); }
+    .write-input.almost  { border-color: var(--gold); }
+    .write-check-btn {
+      align-self: flex-end; background: #fff; color: #000; border: none; border-radius: 10px;
+      padding: 11px 24px; font-size: 13px; font-weight: 700; cursor: pointer;
+      font-family: 'DM Sans', sans-serif; transition: all .18s;
+    }
+    .write-check-btn:hover { filter: brightness(.94); transform: translateY(-1px); }
+    .write-feedback {
+      padding: 13px 17px; border-radius: 11px; font-size: 13px; line-height: 1.5; border: 1px solid;
+    }
+    .write-feedback.correct { background: rgba(94,248,160,.06); border-color: rgba(94,248,160,.2); color: #4fd98e; }
+    .write-feedback.wrong   { background: rgba(255,95,95,.06);  border-color: rgba(255,95,95,.2);  color: var(--red); }
+    .write-feedback.almost  { background: rgba(240,192,96,.06); border-color: rgba(240,192,96,.2); color: var(--gold); }
+    .write-next-btn {
+      align-self: flex-end; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+      color: #fff; border-radius: 10px; padding: 11px 24px; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .18s;
+    }
+    .write-next-btn:hover { background: rgba(255,255,255,.14); }
+
+    /* ── Modal ───────────────────────────────────────── */
+    #modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,.75); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    #modal {
+      background: #10101a; border: 1px solid rgba(255,255,255,.1); border-radius: 20px;
+      width: 100%; max-width: 680px; max-height: 88vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 32px 80px rgba(0,0,0,.7);
+      animation: pluto-fade-up .3s cubic-bezier(.16,1,.3,1);
+    }
+    .modal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px 16px; border-bottom: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
+    }
+    .modal-head-title { font-size: 15px; font-weight: 600; color: #fff; }
+    .modal-x {
+      background: transparent; border: none; color: rgba(255,255,255,.3); font-size: 18px;
+      cursor: pointer; padding: 2px 6px; border-radius: 6px; transition: all .15s;
+    }
+    .modal-x:hover { color: #fff; background: rgba(255,255,255,.06); }
+
+    .modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+
+    .form-input {
+      width: 100%; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 10px; color: #fff; font-size: 14px; font-family: 'DM Sans', sans-serif;
+      padding: 11px 14px; outline: none; transition: border .18s; display: block;
+    }
+    .form-input:focus { border-color: rgba(255,255,255,.2); }
+    .form-input::placeholder { color: rgba(255,255,255,.2); }
+    .field-group { display: flex; flex-direction: column; gap: 9px; margin-bottom: 24px; }
+
+    .editor-head {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+    }
+    .editor-lbl { font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,.2); font-family: 'DM Mono', monospace; }
+    .ai-btn {
+      background: transparent; border: 1px solid rgba(176,176,200,.2); border-radius: 7px;
+      color: var(--accent); font-size: 12px; font-weight: 600; padding: 5px 11px;
+      cursor: pointer; transition: all .15s; font-family: 'DM Sans', sans-serif;
+    }
+    .ai-btn:hover { background: rgba(176,176,200,.08); }
+    .ai-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+    #ai-panel {
+      display: none; flex-direction: column; gap: 10px;
+      background: rgba(56,189,248,.04); border: 1px solid rgba(56,189,248,.15);
+      border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;
+    }
+    #ai-panel.open { display: flex; }
+    .ai-count-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .ai-count-label { font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,.25); font-family: 'DM Mono', monospace; white-space: nowrap; }
+    .ai-count-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ai-count-pill {
+      padding: 5px 13px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
+      font-family: 'DM Sans', sans-serif; border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.04); color: rgba(255,255,255,.5); transition: all .15s;
+    }
+    .ai-count-pill:hover  { background: rgba(255,255,255,.1); color: #fff; }
+    .ai-count-pill.active { background: rgba(56,189,248,.15); border-color: rgba(56,189,248,.4); color: #38bdf8; }
+    #ai-go-btn {
+      width: 100%; background: #38bdf8; color: #000; border: none; border-radius: 9px;
+      font-size: 13px; font-weight: 700; padding: 10px; cursor: pointer;
+      font-family: 'DM Sans', sans-serif; transition: all .18s;
+    }
+    #ai-go-btn:hover { filter: brightness(.9); }
+    #ai-go-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+    #card-editor-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+
+    .card-row {
+      display: grid; grid-template-columns: 1fr 1fr auto;
+      border: 1px solid rgba(255,255,255,.06); border-radius: 9px; overflow: hidden;
+    }
+    .cr-input {
+      background: transparent; border: none; color: #fff; font-size: 13px;
+      font-family: 'DM Sans', sans-serif; padding: 10px 12px; outline: none; transition: background .15s;
+    }
+    .cr-input:focus { background: rgba(255,255,255,.03); }
+    .cr-input::placeholder { color: rgba(255,255,255,.18); }
+    .cr-input:first-child { border-right: 1px solid rgba(255,255,255,.06); }
+    .cr-del {
+      background: transparent; border: none; border-left: 1px solid rgba(255,255,255,.06);
+      color: rgba(255,95,95,.35); font-size: 14px; cursor: pointer; padding: 0 13px;
+      transition: all .15s;
+    }
+    .cr-del:hover { color: var(--red); background: rgba(255,95,95,.07); }
+
+    .add-row-btn {
+      width: 100%; background: transparent; border: 1px dashed rgba(255,255,255,.1); border-radius: 9px;
+      color: rgba(255,255,255,.3); font-size: 13px; font-weight: 500; padding: 9px;
+      cursor: pointer; transition: all .18s; font-family: 'DM Sans', sans-serif; margin-top: 2px;
+    }
+    .add-row-btn:hover { border-color: rgba(255,255,255,.22); color: rgba(255,255,255,.7); background: rgba(255,255,255,.02); }
+
+    .modal-foot {
+      display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+      padding: 14px 24px; border-top: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
+    }
+    .modal-cancel-btn {
+      background: transparent; border: 1px solid rgba(255,255,255,.08); border-radius: 9px;
+      color: rgba(255,255,255,.4); font-size: 13px; padding: 9px 18px; cursor: pointer;
+      font-family: 'DM Sans', sans-serif; transition: all .18s;
+    }
+    .modal-cancel-btn:hover { color: #fff; background: rgba(255,255,255,.05); }
+    .modal-save-btn {
+      background: #fff; color: #000; border: none; border-radius: 9px;
+      font-size: 13px; font-weight: 700; padding: 9px 22px; cursor: pointer;
+      font-family: 'DM Sans', sans-serif; transition: all .18s;
+    }
+    .modal-save-btn:hover { filter: brightness(.94); }
+    .modal-save-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+    /* ── Confetti ─────────────────────────────────────── */
+    #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 9000; }
+
+    /* Utility */
+    .hidden { display: none !important; }
+
+    /* Small ghost btn for header actions */
+    .ghost-btn {
+      background: transparent; border: 1px solid rgba(255,255,255,.08); border-radius: 8px;
+      color: rgba(255,255,255,.45); font-size: 12px; padding: 6px 13px; cursor: pointer;
+      font-family: 'DM Sans', sans-serif; transition: all .15s;
+    }
+    .ghost-btn:hover { background: rgba(255,255,255,.05); color: #fff; }
+    .ghost-btn.danger:hover { color: var(--red); border-color: rgba(255,95,95,.2); background: rgba(255,95,95,.05); }
+  </style>
+</head>
+<body>
+<div class="pluto-page">
+  <div class="pluto-page-bg"></div>
+  <canvas class="pluto-stars-canvas" id="stars"></canvas>
+
+  <!-- ── HEADER ──────────────────────────────────────── -->
+  <header class="pluto-page-header">
+    <button class="pluto-back-btn" id="back-btn">← Back</button>
+    <span class="pluto-page-title" id="page-title">STUDY SETS</span>
+    <div style="width:80px"></div>
+  </header>
+
+  <!-- ── LIBRARY VIEW ───────────────────────────────── -->
+  <div id="view-library">
+    <div class="wrap">
+      <div class="lib-top">
+        <div>
+          <h2 class="lib-heading">Your sets</h2>
+          <p class="lib-sub" id="lib-sub">loading…</p>
+        </div>
+        <button class="pluto-btn" id="create-btn" style="margin-top:6px">+ New set</button>
+      </div>
+
+      <!-- Empty state -->
+      <div id="lib-empty" class="hidden">
+        <span class="empty-icon">🃏</span>
+        <h3 class="empty-title">No sets yet</h3>
+        <p class="empty-sub">Create your first flashcard set or let AI generate one for you.</p>
+        <div class="empty-btns">
+          <button class="pluto-btn" id="empty-create-btn">+ Create set</button>
+          <button class="pluto-btn pluto-btn-ghost" id="empty-ai-btn">✨ Generate with AI</button>
+        </div>
+      </div>
+
+      <div id="sets-grid"></div>
+    </div>
+  </div>
+
+  <!-- ── DETAIL VIEW ────────────────────────────────── -->
+  <div id="view-detail" class="hidden">
+    <div class="wrap">
+      <div class="det-top">
+        <div style="min-width:0">
+          <h2 class="det-title" id="det-title">—</h2>
+          <p class="det-desc" id="det-desc"></p>
+          <p class="det-meta" id="det-meta"></p>
+        </div>
+        <div class="det-action-row">
+          <button class="ghost-btn" id="det-edit">Edit</button>
+          <button class="ghost-btn danger" id="det-delete">Delete</button>
+        </div>
+      </div>
+
+      <!-- Study modes -->
+      <div class="mode-row">
+        <button class="mode-btn primary" id="btn-flip">🃏 Flip</button>
+        <button class="mode-btn" id="btn-write">✍️ Write</button>
+        <button class="mode-btn" id="btn-learn">🧠 Learn</button>
+        <button class="mode-btn" id="btn-match">🎯 Match</button>
+        <button class="mode-btn" id="btn-test">📝 Test</button>
+        <button class="mode-btn" id="btn-voice">🗣️ Voice</button>
+      </div>
+
+      <!-- Card list -->
+      <div style="font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.2);font-family:'DM Mono',monospace;margin-bottom:4px" id="det-card-count"></div>
+      <div id="det-card-list"></div>
+    </div>
+  </div>
+
+  <!-- ── FLIP OVERLAY ───────────────────────────────── -->
+  <div id="view-flip" class="hidden">
+    <div class="study-topbar">
+      <button class="study-close-btn" id="flip-close">✕ Exit</button>
+      <span class="study-counter" id="flip-counter">1 / 0</span>
+      <div style="width:70px"></div>
+    </div>
+
+    <div class="flip-stage">
+      <button class="nav-arrow" id="flip-prev">‹</button>
+
+      <div class="flip-card-wrap" id="flip-card-wrap">
+        <div class="flip-card-inner">
+          <div class="flip-face">
+            <div class="flip-face-lbl">TERM</div>
+            <div class="flip-face-text" id="flip-term">…</div>
+            <div class="flip-hint">tap to reveal</div>
+          </div>
+          <div class="flip-face flip-face-back">
+            <div class="flip-face-lbl">DEFINITION</div>
+            <div class="flip-face-text" id="flip-def">…</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="nav-arrow" id="flip-next">›</button>
+    </div>
+
+    <div class="flip-grade-row">
+      <button class="grade-btn again" id="flip-again">✗ Still learning</button>
+      <button class="grade-btn got"   id="flip-got">✓ Got it</button>
+    </div>
+
+    <div class="study-prog-bar">
+      <div class="study-prog-fill" id="flip-prog" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- ── WRITE OVERLAY ──────────────────────────────── -->
+  <div id="view-write" class="hidden">
+    <div class="study-topbar">
+      <button class="study-close-btn" id="write-close">✕ Exit</button>
+      <span class="study-counter" id="write-counter">1 / 0</span>
+      <div style="width:70px"></div>
+    </div>
+
+    <div class="write-stage">
+      <p class="write-prompt-lbl">DEFINITION</p>
+      <p class="write-prompt" id="write-prompt">…</p>
+      <input class="write-input" id="write-input" placeholder="Type the term…" autocomplete="off" spellcheck="false"/>
+      <button class="write-check-btn" id="write-check">Check →</button>
+      <div class="write-feedback hidden" id="write-feedback"></div>
+      <button class="write-next-btn hidden" id="write-next">Next →</button>
+    </div>
+
+    <div class="study-prog-bar">
+      <div class="study-prog-fill" id="write-prog" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- ── CREATE / EDIT MODAL ───────────────────────── -->
+  <div id="modal-overlay" class="hidden">
+    <div id="modal">
+      <div class="modal-head">
+        <span class="modal-head-title" id="modal-title-text">Create set</span>
+        <button class="modal-x" id="modal-x">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field-group">
+          <input class="form-input" id="set-title-in" placeholder="Set title" maxlength="80"/>
+          <input class="form-input" id="set-desc-in"  placeholder="Description (optional)" maxlength="200"/>
+        </div>
+        <div class="editor-head">
+          <span class="editor-lbl">CARDS</span>
+          <button class="ai-btn" id="ai-gen-btn">✨ Generate with AI</button>
+        </div>
+
+        <!-- AI generation panel -->
+        <div id="ai-panel">
+          <input class="form-input" id="ai-topic" placeholder="Topic (e.g. French Revolution, Cell Biology…)" maxlength="120" />
+          <div class="ai-count-row">
+            <span class="ai-count-label">HOW MANY</span>
+            <div class="ai-count-pills">
+              <button class="ai-count-pill" data-n="10">10</button>
+              <button class="ai-count-pill active" data-n="20">20</button>
+              <button class="ai-count-pill" data-n="30">30</button>
+              <button class="ai-count-pill" data-n="40">40</button>
+              <button class="ai-count-pill" data-n="50">50</button>
+            </div>
+          </div>
+          <button id="ai-go-btn">Generate cards →</button>
+        </div>
+
+        <div id="card-editor-rows"></div>
+        <button class="add-row-btn" id="add-card-btn">+ Add card</button>
+      </div>
+      <div class="modal-foot">
+        <button class="modal-cancel-btn" id="modal-cancel">Cancel</button>
+        <button class="modal-save-btn" id="modal-save">Save set</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confetti canvas -->
+  <canvas id="confetti-canvas" style="display:none"></canvas>
+</div>
+
+<script type="module" src="study.js"></script>
+</body>
+</html>

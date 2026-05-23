@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pluto Chat</title>
+  <link rel="stylesheet" href="katex.min.css">
+  <script defer src="katex.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="chat.css">
+  <script defer src="chat.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── SIDEBAR ─────────────────────────── -->
+  <div id="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <svg viewBox="0 0 36 36" fill="none" width="22" height="22" style="flex-shrink:0">
+          <circle cx="18" cy="18" r="10" fill="url(#cpg)"/>
+          <ellipse cx="18" cy="18" rx="16.5" ry="5" stroke="url(#crg)" stroke-width="2" fill="none" transform="rotate(-20 18 18)"/>
+          <defs>
+            <radialGradient id="cpg" cx="40%" cy="35%" r="65%">
+              <stop offset="0%" stop-color="#c8c8d0"/>
+              <stop offset="60%" stop-color="#8888a0"/>
+              <stop offset="100%" stop-color="#3a3a50"/>
+            </radialGradient>
+            <linearGradient id="crg" x1="0" y1="0" x2="36" y2="0" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="rgba(200,200,210,0)"/>
+              <stop offset="50%" stop-color="rgba(200,200,210,0.7)"/>
+              <stop offset="100%" stop-color="rgba(200,200,210,0)"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <span class="sidebar-brand-text">PLUTO</span>
+      </div>
+      <button id="new-chat-btn" class="new-chat-btn">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New Chat
+      </button>
+    </div>
+    <div id="chat-list" class="chat-list"></div>
+    <div class="sidebar-fade"></div>
+  </div>
+
+  <!-- ── MAIN ────────────────────────────── -->
+  <div id="main">
+
+    <!-- Top bar -->
+    <div id="topbar">
+      <button id="sidebar-toggle" class="topbar-icon-btn" title="Toggle sidebar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+      <div class="topbar-title-wrap">
+        <span id="chat-title" class="chat-title" spellcheck="false"></span>
+        <button id="title-edit-btn" class="title-edit-btn" title="Rename">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+      </div>
+      <div class="topbar-right">
+        <div id="tutor-pill" class="tutor-pill hidden">🎓 TUTOR</div>
+        <button id="share-btn" class="topbar-btn">↗ Share</button>
+        <div class="menu-wrap">
+          <button id="menu-btn" class="topbar-btn topbar-btn-icon">⋯</button>
+          <div id="dropdown-menu" class="dropdown hidden">
+            <button id="menu-rename">✎  Rename</button>
+            <button id="menu-delete" class="danger">🗑  Delete chat</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Brain panel — same DOM as popup.html -->
+    <div id="brain-panel" class="brain-panel">
+      <div class="brain-header" id="brain-toggle">
+        <div class="brain-title">
+          <span class="brain-icon">🧠</span>
+          <span class="brain-label">SHARED BRAIN</span>
+        </div>
+        <div class="brain-summary">
+          <span id="brain-size">—</span> questions
+          <span class="brain-chevron">▾</span>
+        </div>
+      </div>
+      <div class="brain-body" id="brain-body">
+        <div class="brain-stat-row">
+          <div class="brain-stat">
+            <div class="brain-stat-num" id="brain-asked">0</div>
+            <div class="brain-stat-label">questions you've asked</div>
+          </div>
+          <div class="brain-stat">
+            <div class="brain-stat-num" id="brain-matched">0</div>
+            <div class="brain-stat-label">matches you've received</div>
+          </div>
+          <div class="brain-stat">
+            <div class="brain-stat-num" id="brain-helped">~0</div>
+            <div class="brain-stat-label">est. students you've helped</div>
+          </div>
+        </div>
+        <div id="brain-empty-msg" class="brain-empty" style="display:none">Ask your first question to start contributing to the brain</div>
+        <div class="brain-recent" id="brain-recent">
+          <div class="brain-recent-title">YOUR LAST QUESTION MATCHED</div>
+          <div id="brain-recent-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Star canvas + messages -->
+    <canvas id="star-canvas"></canvas>
+    <div id="chat-box"></div>
+
+    <!-- Input area -->
+    <div id="input-area">
+      <!-- Feature bar -->
+      <div id="feat-bar">
+        <div id="feat-row-primary">
+          <button class="feat-btn feat-primary" id="btn-tutor"   data-tip="Tutor Mode">  <span class="feat-icon">🎓</span><span class="feat-label">Tutor</span></button>
+          <button class="feat-btn feat-primary" id="btn-flash"   data-tip="Flashcards">  <span class="feat-icon">🃏</span><span class="feat-label">Cards</span></button>
+          <button class="feat-btn feat-primary" id="btn-test"    data-tip="Practice Test"><span class="feat-icon">📝</span><span class="feat-label">Test</span></button>
+          <button class="feat-btn feat-primary" id="btn-planner" data-tip="Task Planner"><span class="feat-icon">📅</span><span class="feat-label">Plan</span></button>
+          <button class="feat-btn feat-primary" id="btn-essay"   data-tip="Essay Helper"><span class="feat-icon">✍️</span><span class="feat-label">Essay</span></button>
+        </div>
+        <div id="feat-row-secondary">
+          <button class="feat-btn" id="btn-pdf"     data-tip="Scan PDF">📄</button>
+          <button class="feat-btn" id="btn-podcast" data-tip="Podcast">🎙️</button>
+          <button class="feat-btn" id="btn-vocab"   data-tip="Vocab">📖</button>
+          <button class="feat-btn" id="btn-grade"   data-tip="Grades">🧮</button>
+          <button class="feat-btn" id="btn-timer"   data-tip="Focus Timer">⏱️</button>
+          <button class="feat-btn" id="btn-mood"    data-tip="Focus Sounds">🎵</button>
+          <button class="feat-btn" id="btn-feynman" data-tip="Feynman">💡</button>
+          <div class="feat-divider"></div>
+          <button class="feat-btn" id="btn-dashboard" data-tip="Dashboard">🏠</button>
+          <button class="feat-btn" id="btn-hub"       data-tip="Research Hub">🌐</button>
+          <button class="feat-btn" id="btn-game"      data-tip="Study Game">🎮</button>
+        </div>
+      </div>
+      <!-- Text row -->
+      <div id="input-row">
+        <textarea id="user-input" placeholder="Ask Pluto anything..." rows="1" autocomplete="off"></textarea>
+        <button id="send-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19V5M5 12l7-7 7 7"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint">Enter to send · Shift+Enter for new line</div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- ── BOTTOM SHEET (fixed over full viewport) ── -->
+  <div id="sheet-backdrop" class="hidden"></div>
+  <div id="bottom-sheet" class="hidden">
+    <div id="sheet-handle"></div>
+    <div id="sheet-header">
+      <span id="sheet-title"></span>
+      <button id="sheet-close">✕</button>
+    </div>
+    <div id="sheet-body"></div>
+  </div>
+
+  <!-- ── MESSAGE DOTS ── -->
+  <div id="msg-dots"></div>
+
+  <!-- ── ACTIVE FEATURE PILL ── -->
+  <div id="active-feat-pill" class="hidden">
+    <span id="afp-icon"></span>
+    <span id="afp-label"></span>
+    <button id="afp-close">✕</button>
+  </div>
+
+</div><!-- /app -->
+</body>
+</html>

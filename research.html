@@ -1,0 +1,242 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pluto Research Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,200;0,300;0,400;0,500;0,600;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #000; --s1: rgba(255,255,255,.04); --s2: rgba(255,255,255,.08);
+  --b1: rgba(255,255,255,.07); --b2: rgba(255,255,255,.14);
+  --text: #e0e0e8; --dim: #404050; --mid: #707080;
+  --accent: #b0b0c8; --green: #5ef8a0; --blue: #4f8ef7; --red: #ff5f5f;
+  --gold: #f0c060;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;overflow:hidden}
+
+/* ── LAYOUT ── */
+#app{display:grid;grid-template-columns:220px 1fr 320px;height:100vh}
+
+/* ── LEFT NAV ── */
+#nav{border-right:1px solid var(--b1);display:flex;flex-direction:column;background:rgba(0,0,0,.6);backdrop-filter:blur(20px)}
+.nav-logo{padding:20px 16px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--b1)}
+.nav-logo svg{filter:drop-shadow(0 0 8px rgba(160,160,200,.3))}
+.nav-brand{font-size:11px;font-weight:700;letter-spacing:3px;color:#fff}
+.nav-sub{font-size:8.5px;color:var(--dim);font-family:'DM Mono',monospace}
+.nav-section{padding:12px 12px 4px;font-size:8.5px;letter-spacing:2px;color:var(--dim);font-family:'DM Mono',monospace}
+.nav-btn{display:flex;align-items:center;gap:10px;padding:9px 14px;margin:1px 8px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--mid);transition:all .18s;border:none;background:transparent;text-align:left;width:calc(100% - 16px)}
+.nav-btn:hover{background:var(--s2);color:var(--text)}
+.nav-btn.active{background:var(--s2);color:#fff;border:1px solid var(--b2)}
+.nav-btn .nb-icon{font-size:15px;width:20px;text-align:center}
+.nav-btn .nb-label{font-size:12.5px;font-weight:500}
+.nav-spacer{flex:1}
+.nav-coins{margin:12px;background:rgba(240,192,96,.06);border:1px solid rgba(240,192,96,.15);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:8px}
+.nc-val{font-size:18px;font-weight:600;color:var(--gold);font-family:'DM Mono',monospace}
+.nc-label{font-size:10px;color:var(--mid)}
+.nc-xp{font-size:9px;color:var(--gold);font-family:'DM Mono',monospace;margin-top:2px}
+
+/* ── MAIN EDITOR ── */
+#main{display:flex;flex-direction:column;overflow:hidden}
+#toolbar{display:flex;align-items:center;gap:6px;padding:10px 16px;border-bottom:1px solid var(--b1);flex-shrink:0;flex-wrap:wrap}
+.tb-group{display:flex;gap:3px;padding-right:8px;margin-right:4px;border-right:1px solid var(--b1)}
+.tb-btn{background:transparent;border:1px solid transparent;border-radius:7px;color:var(--mid);font-size:12px;padding:5px 9px;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;white-space:nowrap}
+.tb-btn:hover{background:var(--s2);color:var(--text);border-color:var(--b2)}
+.tb-btn.active{background:var(--s2);color:#fff;border-color:var(--b2)}
+.tb-divider{width:1px;background:var(--b1);height:20px;margin:0 4px}
+#doc-title{background:transparent;border:none;outline:none;font-size:14px;font-weight:600;color:#fff;font-family:'DM Sans',sans-serif;min-width:200px;padding:4px 8px}
+#doc-title::placeholder{color:var(--dim)}
+.tb-spacer{flex:1}
+.tb-status{font-size:10px;color:var(--dim);font-family:'DM Mono',monospace}
+
+#editor-wrap{flex:1;overflow-y:auto;padding:40px 80px;scrollbar-width:thin;scrollbar-color:var(--b2) transparent}
+#editor{min-height:calc(100vh - 200px);outline:none;font-size:15px;line-height:1.85;color:var(--text);caret-color:var(--accent)}
+#editor:empty::before{content:attr(data-placeholder);color:var(--dim);pointer-events:none}
+#editor p{margin-bottom:12px}
+#editor h1{font-size:28px;font-weight:300;letter-spacing:-1px;margin-bottom:16px;color:#fff}
+#editor h2{font-size:20px;font-weight:500;margin-bottom:12px;color:#fff}
+#editor h3{font-size:16px;font-weight:600;margin-bottom:8px;color:var(--accent)}
+#editor blockquote{border-left:3px solid var(--accent);padding-left:16px;color:var(--mid);font-style:italic;margin:16px 0}
+#editor strong{color:#fff;font-weight:600}
+#editor em{color:var(--accent)}
+
+/* ── RIGHT PANEL ── */
+#right{border-left:1px solid var(--b1);display:flex;flex-direction:column;overflow:hidden}
+#right-tabs{display:flex;border-bottom:1px solid var(--b1);flex-shrink:0}
+.rt-tab{flex:1;padding:10px 4px;font-size:10px;font-weight:600;letter-spacing:.5px;color:var(--mid);background:transparent;border:none;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
+.rt-tab:hover{color:var(--text)}
+.rt-tab.active{color:#fff;border-bottom:1.5px solid var(--accent)}
+#right-body{flex:1;overflow-y:auto;padding:14px;scrollbar-width:thin;scrollbar-color:var(--b2) transparent}
+
+/* AI assistant chat in right panel */
+.ai-msg{background:var(--s1);border:1px solid var(--b1);border-radius:12px 12px 12px 3px;padding:10px 13px;margin-bottom:8px;font-size:12.5px;line-height:1.65;color:#c0c0cc}
+.user-msg{background:var(--s2);border:1px solid var(--b2);border-radius:12px 12px 3px 12px;padding:10px 13px;margin-bottom:8px;font-size:12.5px;color:#fff;margin-left:20px}
+.source-card{background:rgba(79,142,247,.04);border:1px solid rgba(79,142,247,.12);border-radius:11px;padding:11px 13px;margin-bottom:8px}
+.sc-title{font-size:12px;font-weight:600;color:#fff;margin-bottom:3px;line-height:1.4}
+.sc-title a{color:#fff;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.2)}
+.sc-title a:hover{border-color:var(--blue)}
+.sc-meta{font-size:9.5px;color:var(--mid);font-family:'DM Mono',monospace;margin-bottom:5px}
+.sc-sum{font-size:11.5px;color:var(--mid);line-height:1.5;margin-bottom:7px}
+.sc-cite{font-size:9.5px;color:rgba(79,142,247,.7);font-family:'DM Mono',monospace;background:rgba(79,142,247,.06);border-radius:5px;padding:5px 7px;line-height:1.5;margin-bottom:6px}
+.sc-btns{display:flex;gap:5px}
+.sc-btn{flex:1;background:transparent;border:1px solid var(--b1);border-radius:6px;color:var(--mid);font-size:9.5px;font-weight:600;padding:4px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
+.sc-btn:hover{background:var(--s2);color:#fff}
+
+/* Right panel input */
+#rp-input-wrap{padding:10px;border-top:1px solid var(--b1);flex-shrink:0}
+#rp-input-row{display:flex;gap:6px}
+#rp-input{flex:1;background:var(--s1);border:1px solid var(--b1);border-radius:9px;color:#fff;padding:8px 11px;font-size:12.5px;font-family:'DM Sans',sans-serif;outline:none;transition:border .2s}
+#rp-input:focus{border-color:var(--b2)}
+#rp-input::placeholder{color:var(--dim)}
+#rp-send{background:var(--accent);border:none;border-radius:9px;color:#000;font-size:11px;font-weight:700;padding:8px 13px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
+#rp-send:hover{filter:brightness(1.15)}
+#rp-send:disabled{opacity:.4;cursor:not-allowed}
+
+/* Source format selector */
+#fmt-row{display:flex;gap:5px;margin-bottom:10px}
+.fmt-pill{background:transparent;border:1px solid var(--b1);border-radius:7px;color:var(--mid);font-size:10px;font-weight:600;padding:4px 11px;cursor:pointer;transition:all .18s;font-family:'DM Mono',monospace}
+.fmt-pill.on{background:var(--s2);border-color:var(--b2);color:#fff}
+
+/* ── MODAL OVERLAY ── */
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+#modal.show{opacity:1;pointer-events:auto}
+#modal-box{background:#0a0a14;border:1px solid var(--b2);border-radius:18px;padding:28px;max-width:500px;width:90%;transform:translateY(20px);transition:transform .25s}
+#modal.show #modal-box{transform:translateY(0)}
+.modal-title{font-size:18px;font-weight:500;color:#fff;margin-bottom:6px}
+.modal-sub{font-size:13px;color:var(--mid);margin-bottom:20px;line-height:1.5}
+.modal-input{width:100%;background:var(--s1);border:1px solid var(--b1);border-radius:10px;color:#fff;padding:10px 13px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:12px;transition:border .2s}
+.modal-input:focus{border-color:var(--b2)}
+.modal-input::placeholder{color:var(--dim)}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end}
+.modal-btn{background:var(--s2);border:1px solid var(--b2);border-radius:9px;color:#fff;font-size:12px;font-weight:600;padding:9px 20px;cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif}
+.modal-btn:hover{background:rgba(255,255,255,.12)}
+.modal-btn.primary{background:var(--accent);color:#000;border-color:var(--accent)}
+.modal-btn.primary:hover{filter:brightness(1.1)}
+
+/* Reward popup */
+#reward-popup{position:fixed;top:20px;right:20px;background:#0a0a14;border:1px solid rgba(240,192,96,.3);border-radius:14px;padding:14px 18px;z-index:200;transform:translateX(120%);transition:transform .4s cubic-bezier(.16,1,.3,1);display:flex;align-items:center;gap:12px}
+#reward-popup.show{transform:translateX(0)}
+.rp-icon{font-size:24px}
+.rp-text .rp-title{font-size:13px;font-weight:600;color:#fff}
+.rp-text .rp-sub{font-size:11px;color:var(--gold);font-family:'DM Mono',monospace}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:4px}
+
+/* Loading dots */
+.dots::after{content:'';animation:dotanim 1.2s infinite}
+@keyframes dotanim{0%{content:''}33%{content:'.'}66%{content:'..'}100%{content:'...'}}
+
+/* Highlight for selected text AI action */
+::selection{background:rgba(79,142,247,.3)}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- LEFT NAV -->
+  <div id="nav">
+    <div class="nav-logo">
+      <svg viewBox="0 0 36 36" fill="none" width="28" height="28">
+        <circle cx="18" cy="18" r="10" fill="url(#pg)"/>
+        <ellipse cx="18" cy="18" rx="16.5" ry="5" stroke="url(#rg)" stroke-width="2" fill="none" transform="rotate(-20 18 18)"/>
+        <defs>
+          <radialGradient id="pg" cx="40%" cy="35%" r="65%"><stop offset="0%" stop-color="#c8c8d0"/><stop offset="100%" stop-color="#3a3a50"/></radialGradient>
+          <linearGradient id="rg" x1="0" y1="0" x2="36" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="rgba(200,200,210,0)"/><stop offset="50%" stop-color="rgba(200,200,210,0.8)"/><stop offset="100%" stop-color="rgba(200,200,210,0)"/></linearGradient>
+        </defs>
+      </svg>
+      <div><div class="nav-brand">PLUTO</div><div class="nav-sub">research hub</div></div>
+    </div>
+
+    <div class="nav-section">TOOLS</div>
+    <button class="nav-btn active" data-view="write"><span class="nb-icon">✍️</span><span class="nb-label">Essay Writer</span></button>
+    <button class="nav-btn" data-view="research"><span class="nb-icon">🔬</span><span class="nb-label">Find Sources</span></button>
+    <button class="nav-btn" data-view="humanize"><span class="nb-icon">🧬</span><span class="nb-label">Humanizer</span></button>
+    <button class="nav-btn" data-view="outline"><span class="nb-icon">📋</span><span class="nb-label">Outline Builder</span></button>
+    <button class="nav-btn" data-view="cite"><span class="nb-icon">📎</span><span class="nb-label">Citation Manager</span></button>
+
+    <div class="nav-section" style="margin-top:8px">SAVED</div>
+    <div id="saved-list"></div>
+
+    <div class="nav-spacer"></div>
+    <div class="nav-coins">
+      <span style="font-size:18px">🪙</span>
+      <div><div class="nc-val" id="coin-display">0</div><div class="nc-label">coins earned</div><div class="nc-xp" id="xp-display">LVL 1 · 0 XP</div></div>
+    </div>
+  </div>
+
+  <!-- MAIN EDITOR -->
+  <div id="main">
+    <div id="toolbar">
+      <input id="doc-title" placeholder="Untitled document..." autocomplete="off"/>
+      <div class="tb-divider"></div>
+      <div class="tb-group">
+        <button class="tb-btn" data-cmd="bold"><b>B</b></button>
+        <button class="tb-btn" data-cmd="italic"><i>I</i></button>
+        <button class="tb-btn" data-cmd="underline"><u>U</u></button>
+      </div>
+      <div class="tb-group">
+        <button class="tb-btn" data-heading="1">H1</button>
+        <button class="tb-btn" data-heading="2">H2</button>
+        <button class="tb-btn" data-heading="3">H3</button>
+      </div>
+      <div class="tb-group">
+        <button class="tb-btn" data-action="ul">• List</button>
+        <button class="tb-btn" data-action="ol">1. List</button>
+        <button class="tb-btn" data-action="bq">❝</button>
+      </div>
+      <div class="tb-spacer"></div>
+      <span class="tb-status" id="word-count">0 words</span>
+      <button class="tb-btn" id="tb-save">💾 Save</button>
+      <button class="tb-btn" id="tb-copy">📋 Copy</button>
+      <button class="tb-btn" id="tb-download">⬇️ Download</button>
+    </div>
+
+    <div id="editor-wrap">
+      <div id="editor" contenteditable="true"
+        data-placeholder="Start writing, or use the AI tools on the right to generate content...
+
+Select any text and ask Pluto to improve, expand, or rewrite it."></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right">
+    <div id="right-tabs">
+      <button class="rt-tab active" data-tab="ai">🤖 AI</button>
+      <button class="rt-tab" data-tab="sources">🔬 Sources</button>
+      <button class="rt-tab" data-tab="citations">📎 Citations</button>
+    </div>
+    <div id="right-body"></div>
+    <div id="rp-input-wrap">
+      <div id="rp-input-row">
+        <input id="rp-input" placeholder="Ask Pluto to write, improve, research..." autocomplete="off"/>
+        <button id="rp-send">Ask</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div id="modal">
+  <div id="modal-box">
+    <div class="modal-title" id="modal-title">Modal</div>
+    <div class="modal-sub" id="modal-sub"></div>
+    <div id="modal-content"></div>
+    <div class="modal-btns" id="modal-btns"></div>
+  </div>
+</div>
+
+<!-- REWARD POPUP -->
+<div id="reward-popup">
+  <div class="rp-icon" id="rp-icon">🪙</div>
+  <div class="rp-text"><div class="rp-title" id="rp-title">+10 coins</div><div class="rp-sub" id="rp-sub">Keep writing!</div></div>
+</div>
+
+<script src="research.js"></script>
+</body>
+</html>

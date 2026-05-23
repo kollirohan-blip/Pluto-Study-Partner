@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check popup.js)",
+      "Bash(node --check chat.js)",
+      "Bash(node --check content.js)",
+      "Bash(node -e \"try{require\\('./server.js'\\)}catch\\(e\\){console.log\\('load error:',e.message\\)}\")",
+      "Bash(netstat -ano)",
+      "Bash(curl -s -X POST http://localhost:3000/ask-aria -H \"Content-Type: application/json\" -d \"{\\\\\"message\\\\\":\\\\\"hi\\\\\",\\\\\"profile\\\\\":{\\\\\"name\\\\\":\\\\\"Test\\\\\"},\\\\\"pageContext\\\\\":{\\\\\"url\\\\\":\\\\\"test\\\\\",\\\\\"title\\\\\":\\\\\"test\\\\\",\\\\\"text\\\\\":\\\\\"\\\\\"},\\\\\"history\\\\\":[],\\\\\"tutorMode\\\\\":false}\" --max-time 10)",
+      "Bash(grep -rn \"Session paused\\\\|paused\\\\|tutorMode\\\\|tutor\" \"c:\\\\Users\\\\Kolli\\\\OneDrive\\\\Desktop\\\\homework-helper\\\\\" --include=\"*.js\" --include=\"*.html\" | head -30)",
+      "Read(//c/Users/Kolli/OneDrive/Desktop/**)",
+      "Bash(ls \"c:\\\\Users\\\\Kolli\\\\OneDrive\\\\Desktop\\\\\" | head -30)",
+      "Read(//c/Users/Kolli/OneDrive/**)",
+      "PowerShell(node --input-type=module --eval \"$\\(Get-Content 'C:\\\\Users\\\\Kolli\\\\OneDrive\\\\Desktop\\\\homework-helper\\\\test.js' -Raw\\)\" 2>&1 | Select-Object -First 5)",
+      "Bash(dir \"C:\\\\Users\\\\Kolli\\\\OneDrive\\\\Desktop\\\\Aria-server\\\\standards\\\\indices\")",
+      "Bash(dir \"C:\\\\Users\\\\Kolli\\\\OneDrive\\\\Desktop\\\\Aria-server\\\\standards\\\\indices\\\\ap-index\")",
+      "Bash(powershell -Command \"\\(Get-Content 'C:\\\\Users\\\\Kolli\\\\OneDrive\\\\Desktop\\\\Aria-server\\\\standards\\\\indices\\\\ap-index\\\\index.json' | ConvertFrom-Json\\).items.Count\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const idx=JSON.parse\\(fs.readFileSync\\('C:/Users/Kolli/OneDrive/Desktop/Aria-server/standards/indices/ap-index/index.json','utf8'\\)\\); const courses=[...new Set\\(idx.items.map\\(i=>i.metadata.course\\)\\)].sort\\(\\); console.log\\(courses.join\\('\\\\n'\\)\\);\")",
+      "Bash(node -e \"const p = require\\('pdf-parse'\\); console.log\\(typeof p, Object.keys\\(p||{}\\).slice\\(0,5\\)\\);\")"
+    ]
+  }
+}

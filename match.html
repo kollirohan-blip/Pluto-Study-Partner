@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pluto — Match</title>
+  <link rel="stylesheet" href="pluto-shared.css">
+  <style>
+    body { background:#07070f; overflow-x:hidden; }
+    body::after {
+      content:''; position:fixed; inset:0; z-index:9999; pointer-events:none; opacity:.028;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size:180px;
+    }
+    .pluto-page-bg { background:radial-gradient(ellipse 80% 50% at 50% -10%, rgba(232,184,75,.06), transparent), #07070f; }
+    .wrap { max-width:860px; margin:0 auto; padding:36px 24px 80px; }
+    .section-eyebrow { font-size:10px; letter-spacing:2px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; margin-bottom:8px; }
+    .page-heading { font-size:26px; font-weight:300; color:#fff; letter-spacing:-.4px; margin-bottom:6px; }
+    .page-sub { font-size:13px; color:rgba(255,255,255,.3); margin-bottom:32px; }
+
+    /* ── Picker ── */
+    #view-picker {}
+    #picker-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:10px; }
+    .picker-card {
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:14px;
+      padding:18px 20px; cursor:pointer; transition:all .2s cubic-bezier(.16,1,.3,1);
+      animation:pluto-fade-up .4s cubic-bezier(.16,1,.3,1) both;
+    }
+    .picker-card:hover { background:rgba(255,255,255,.07); transform:translateY(-2px); }
+    .picker-card-title { font-size:14px; font-weight:600; color:#fff; margin-bottom:4px; }
+    .picker-card-meta  { font-size:11px; color:rgba(255,255,255,.3); font-family:'DM Mono',monospace; }
+
+    /* ── Firebase setup modal ── */
+    #firebase-modal {
+      position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:500;
+      display:flex; align-items:center; justify-content:center; padding:20px;
+    }
+    .firebase-modal-box {
+      background:#10101a; border:1px solid rgba(255,255,255,.1); border-radius:18px;
+      padding:32px 28px; max-width:500px; width:100%;
+    }
+    .firebase-modal-title { font-size:18px; font-weight:600; color:#fff; margin-bottom:8px; }
+    .firebase-modal-sub   { font-size:12px; color:rgba(255,255,255,.35); line-height:1.6; margin-bottom:20px; }
+    .firebase-textarea {
+      width:100%; min-height:130px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+      border-radius:10px; color:#fff; font-size:12px; font-family:'DM Mono',monospace;
+      padding:12px; outline:none; resize:vertical; transition:border .18s;
+    }
+    .firebase-textarea:focus { border-color:rgba(255,255,255,.25); }
+    .firebase-modal-row { display:flex; gap:10px; margin-top:14px; }
+    .fm-btn {
+      flex:1; padding:11px; border-radius:10px; border:1px solid rgba(255,255,255,.1);
+      background:rgba(255,255,255,.06); color:#fff; font-size:13px; font-weight:600;
+      cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .15s;
+    }
+    .fm-btn.primary { background:#fff; color:#000; border-color:#fff; }
+    .fm-btn:hover { background:rgba(255,255,255,.12); }
+    .fm-btn.primary:hover { filter:brightness(.94); }
+
+    /* ── Game view ── */
+    #view-game {
+      position:fixed; inset:0; background:#07070f; z-index:10;
+      display:none; flex-direction:column;
+    }
+    #game-header {
+      display:flex; align-items:center; gap:16px; padding:14px 22px;
+      border-bottom:1px solid rgba(255,255,255,.05); flex-shrink:0;
+    }
+    .exit-btn {
+      background:transparent; border:1px solid rgba(255,255,255,.08); border-radius:8px;
+      color:rgba(255,255,255,.35); font-size:12px; padding:6px 12px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .15s;
+    }
+    .exit-btn:hover { background:rgba(255,255,255,.06); color:#fff; }
+    #game-set-name { font-size:12px; color:rgba(255,255,255,.3); font-family:'DM Mono',monospace; flex:1; text-align:center; }
+    #game-timer {
+      font-size:20px; font-weight:700; color:#fff; font-family:'DM Mono',monospace;
+      letter-spacing:2px; min-width:80px; text-align:right;
+    }
+
+    /* Board */
+    #game-board {
+      flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      padding:20px; gap:16px;
+    }
+    #board-grid {
+      display:grid; grid-template-columns:1fr 1fr; gap:10px;
+      width:100%; max-width:680px;
+    }
+    .match-col { display:flex; flex-direction:column; gap:10px; }
+    .match-tile {
+      background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:13px;
+      padding:16px 18px; font-size:13px; color:rgba(255,255,255,.8); cursor:pointer;
+      transition:all .18s; font-family:'DM Sans',sans-serif; line-height:1.45;
+      user-select:none; position:relative; min-height:52px;
+      display:flex; align-items:center;
+    }
+    .match-tile:hover:not(.matched):not(.selected) { background:rgba(255,255,255,.09); border-color:rgba(255,255,255,.2); }
+    .match-tile.selected { background:rgba(232,184,75,.1); border-color:rgba(232,184,75,.5); color:#e8b84b; transform:scale(1.02); }
+    .match-tile.matched  { background:rgba(79,217,142,.08); border-color:rgba(79,217,142,.3); color:#4fd98e; opacity:.5; pointer-events:none; }
+    .match-tile.wrong    { background:rgba(255,95,95,.1); border-color:rgba(255,95,95,.4); color:#ff5f5f; animation:shake .35s cubic-bezier(.36,.07,.19,.97); }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+    .match-tile-label { font-size:9px; letter-spacing:1.5px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; margin-bottom:4px; display:block; }
+
+    /* ── Finish screen ── */
+    #view-finish {
+      position:fixed; inset:0; background:#07070f; z-index:30;
+      display:none; flex-direction:column; align-items:center; justify-content:center;
+      text-align:center; padding:32px;
+    }
+    .finish-icon  { font-size:56px; margin-bottom:20px; }
+    .finish-time  { font-size:48px; font-weight:300; color:#fff; font-family:'DM Mono',monospace; letter-spacing:-2px; margin-bottom:8px; }
+    .finish-label { font-size:13px; color:rgba(255,255,255,.35); margin-bottom:32px; }
+    .finish-btns  { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:32px; }
+    .f-btn {
+      background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:10px;
+      color:#fff; font-size:13px; font-weight:600; padding:12px 24px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .18s;
+    }
+    .f-btn:hover { background:rgba(255,255,255,.13); }
+    .f-btn.primary { background:#fff; color:#000; border-color:#fff; }
+    .f-btn.primary:hover { filter:brightness(.94); }
+
+    /* Leaderboard */
+    #leaderboard { max-width:480px; width:100%; margin:0 auto; }
+    #lb-title { font-size:12px; letter-spacing:2px; color:rgba(255,255,255,.25); font-family:'DM Mono',monospace; margin-bottom:14px; }
+    .lb-row {
+      display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:10px;
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.05); margin-bottom:6px;
+    }
+    .lb-row.you { background:rgba(232,184,75,.07); border-color:rgba(232,184,75,.2); }
+    .lb-rank  { font-size:12px; color:rgba(255,255,255,.3); font-family:'DM Mono',monospace; min-width:22px; }
+    .lb-name  { flex:1; font-size:13px; color:rgba(255,255,255,.7); }
+    .lb-time  { font-size:12px; color:rgba(255,255,255,.4); font-family:'DM Mono',monospace; }
+    .lb-set   { font-size:10px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; }
+    .lb-empty { font-size:13px; color:rgba(255,255,255,.2); padding:16px 0; }
+
+    #confetti-canvas { position:fixed; inset:0; z-index:40; pointer-events:none; display:none; }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+<div class="pluto-page">
+  <div class="pluto-page-bg"></div>
+  <canvas class="pluto-stars-canvas" id="stars"></canvas>
+
+  <!-- ── PICKER ── -->
+  <div id="view-picker">
+    <header class="pluto-page-header">
+      <button class="pluto-back-btn" onclick="history.back()">← Back</button>
+      <span class="pluto-page-title">MATCH</span>
+      <div style="width:80px"></div>
+    </header>
+    <div class="wrap">
+      <div class="section-eyebrow">Match Mode</div>
+      <h2 class="page-heading">Choose a set</h2>
+      <p class="page-sub">Match all 6 pairs as fast as you can. Top times go on the global leaderboard.</p>
+      <div id="picker-grid"></div>
+    </div>
+  </div>
+
+  <!-- ── GAME ── -->
+  <div id="view-game">
+    <div id="game-header">
+      <button class="exit-btn" id="game-exit">✕ Exit</button>
+      <div id="game-set-name">—</div>
+      <div id="game-timer">0.00</div>
+    </div>
+    <div id="game-board">
+      <div id="board-grid">
+        <div class="match-col" id="col-terms"></div>
+        <div class="match-col" id="col-defs"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FINISH ── -->
+  <div id="view-finish">
+    <div class="finish-icon">🎯</div>
+    <div class="finish-time" id="finish-time">0.00s</div>
+    <div class="finish-label" id="finish-label">—</div>
+    <div class="finish-btns">
+      <button class="f-btn" id="finish-exit">Done</button>
+      <button class="f-btn" id="finish-lb-submit" class="hidden">Submit to leaderboard →</button>
+      <button class="f-btn primary" id="finish-replay">Play again</button>
+    </div>
+    <div id="leaderboard">
+      <div id="lb-title">GLOBAL LEADERBOARD</div>
+      <div id="lb-rows"></div>
+    </div>
+  </div>
+
+  <!-- ── Firebase setup modal ── -->
+  <div id="firebase-modal" class="hidden">
+    <div class="firebase-modal-box">
+      <div class="firebase-modal-title">🔥 Connect Firebase</div>
+      <div class="firebase-modal-sub">Paste your Firebase web app config JSON to enable the global leaderboard. This is a one-time setup — it's saved locally and never shared.</div>
+      <textarea class="firebase-textarea" id="firebase-cfg-input" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...",...}'></textarea>
+      <div class="firebase-modal-row">
+        <button class="fm-btn" id="firebase-skip">Skip (no leaderboard)</button>
+        <button class="fm-btn primary" id="firebase-save">Connect →</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="confetti-canvas"></canvas>
+</div>
+<script type="module" src="match.js"></script>
+</body>
+</html>

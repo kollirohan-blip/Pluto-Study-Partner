@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pluto — Learn</title>
+  <link rel="stylesheet" href="pluto-shared.css">
+  <style>
+    body { overflow: hidden; background: #07070f; }
+
+    body::after {
+      content:''; position:fixed; inset:0; z-index:9999; pointer-events:none;
+      opacity:.028;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size:180px;
+    }
+    .pluto-page-bg {
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,100,247,.07), transparent), #07070f;
+    }
+
+    /* ── PICKER view ─────────────────────────────────── */
+    #view-picker { display:flex; flex-direction:column; min-height:100vh; }
+    .pluto-page-header { background:rgba(7,7,15,.7); border-color:rgba(255,255,255,.05); }
+
+    .picker-wrap { max-width:800px; margin:0 auto; padding:40px 28px 80px; }
+    .picker-heading { font-size:28px; font-weight:300; color:#fff; letter-spacing:-.5px; margin-bottom:6px; }
+    .picker-sub     { font-size:12px; color:rgba(255,255,255,.3); font-family:'DM Mono',monospace; margin-bottom:32px; }
+
+    #picker-grid {
+      display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:10px;
+    }
+    .picker-card {
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:14px;
+      padding:18px 20px; cursor:pointer; transition:all .2s cubic-bezier(.16,1,.3,1);
+      animation:pluto-fade-up .4s cubic-bezier(.16,1,.3,1) both;
+    }
+    .picker-card:hover { background:rgba(255,255,255,.06); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.4); }
+    .picker-card-title { font-size:14px; font-weight:600; color:#fff; margin-bottom:5px; }
+    .picker-card-meta  { font-size:11px; color:rgba(255,255,255,.3); font-family:'DM Mono',monospace; }
+
+    /* ── LEARN view (full-screen fixed) ─────────────── */
+    #view-learn {
+      position:fixed; inset:0; background:#07070f;
+      display:flex; flex-direction:column; z-index:10;
+    }
+
+    /* Header */
+    #learn-header {
+      display:flex; align-items:center; gap:14px;
+      padding:14px 22px; border-bottom:1px solid rgba(255,255,255,.05);
+      flex-shrink:0;
+    }
+    .exit-btn {
+      background:transparent; border:1px solid rgba(255,255,255,.08); border-radius:8px;
+      color:rgba(255,255,255,.35); font-size:12px; padding:6px 12px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .15s; flex-shrink:0;
+    }
+    .exit-btn:hover { background:rgba(255,255,255,.06); color:#fff; }
+    #prog-wrap { flex:1; display:flex; flex-direction:column; gap:5px; }
+    #prog-bar  { height:4px; background:rgba(255,255,255,.07); border-radius:2px; overflow:hidden; }
+    #prog-fill { height:100%; background:#4fd98e; border-radius:2px; transition:width .5s ease; width:0%; }
+    #prog-text { font-size:10px; color:rgba(255,255,255,.25); font-family:'DM Mono',monospace; }
+    #streak-badge { font-size:13px; font-family:'DM Mono',monospace; color:rgba(255,255,255,.4); min-width:44px; text-align:right; }
+
+    /* Body */
+    #learn-body {
+      flex:1; display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      padding:24px 20px 20px; gap:14px; overflow-y:auto;
+    }
+
+    /* Set label */
+    #set-label {
+      font-size:10px; letter-spacing:2px; color:rgba(255,255,255,.2);
+      font-family:'DM Mono',monospace; align-self:flex-start;
+      max-width:600px; width:100%;
+    }
+
+    /* Question card */
+    #question-card {
+      width:100%; max-width:600px;
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+      border-radius:20px; padding:32px 28px; text-align:center;
+    }
+    #q-label { font-size:9px; letter-spacing:2px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; margin-bottom:14px; }
+    #q-text  { font-size:20px; font-weight:300; color:#fff; line-height:1.55; }
+
+    /* Mode badge */
+    #mode-badge {
+      font-size:9px; letter-spacing:1.5px; color:rgba(255,255,255,.2);
+      font-family:'DM Mono',monospace; margin-top:12px;
+    }
+
+    /* MC choices */
+    #mc-section { width:100%; max-width:600px; }
+    #choices-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+    .choice-btn {
+      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:13px;
+      padding:15px 14px; font-size:13px; font-weight:500; color:rgba(255,255,255,.85);
+      cursor:pointer; text-align:left; transition:all .16s; font-family:'DM Sans',sans-serif;
+      line-height:1.45; width:100%;
+    }
+    .choice-btn:hover:not(:disabled) { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.15); }
+    .choice-btn.correct { background:rgba(94,248,160,.1); border-color:rgba(94,248,160,.35); color:#4fd98e; pointer-events:none; }
+    .choice-btn.wrong   { background:rgba(255,95,95,.1);  border-color:rgba(255,95,95,.35);  color:var(--red); pointer-events:none; }
+    .choice-btn.dim     { opacity:.22; cursor:default; pointer-events:none; }
+
+    /* Write section */
+    #write-section { width:100%; max-width:600px; display:flex; flex-direction:column; gap:10px; }
+    .write-input {
+      width:100%; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+      border-radius:12px; color:#fff; font-size:16px; font-family:'DM Sans',sans-serif;
+      padding:13px 16px; outline:none; transition:border .18s;
+    }
+    .write-input:focus   { border-color:rgba(255,255,255,.25); }
+    .write-input.correct { border-color:#4fd98e; }
+    .write-input.wrong   { border-color:var(--red); }
+    .write-input.almost  { border-color:var(--gold); }
+    #write-check {
+      align-self:flex-end; background:#fff; color:#000; border:none; border-radius:10px;
+      padding:10px 22px; font-size:13px; font-weight:700; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .18s;
+    }
+    #write-check:hover { filter:brightness(.94); }
+
+    /* Feedback */
+    .feedback-box {
+      width:100%; max-width:600px; padding:12px 16px; border-radius:11px;
+      font-size:13px; border:1px solid; line-height:1.5;
+    }
+    .feedback-box.correct { background:rgba(94,248,160,.06); border-color:rgba(94,248,160,.2); color:#4fd98e; }
+    .feedback-box.wrong   { background:rgba(255,95,95,.06);  border-color:rgba(255,95,95,.2);  color:var(--red); }
+
+    /* AI Hint */
+    #hint-box {
+      width:100%; max-width:600px; padding:12px 16px; border-radius:11px;
+      font-size:13px; color:rgba(255,200,80,.9);
+      background:rgba(240,192,96,.06); border:1px solid rgba(240,192,96,.18);
+      line-height:1.55;
+    }
+
+    /* Continue button */
+    #continue-btn {
+      background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:11px;
+      color:#fff; font-size:13px; font-weight:600; padding:12px 28px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .18s; align-self:center;
+    }
+    #continue-btn:hover { background:rgba(255,255,255,.13); }
+
+    /* ── ROUND COMPLETE view ──────────────────────── */
+    #view-round {
+      position:fixed; inset:0; background:#07070f; z-index:20;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      text-align:center; padding:32px;
+    }
+    .round-icon  { font-size:52px; margin-bottom:20px; }
+    .round-title { font-size:32px; font-weight:300; color:#fff; letter-spacing:-.5px; margin-bottom:10px; }
+    .round-sub   { font-size:14px; color:rgba(255,255,255,.4); margin-bottom:8px; }
+    .round-pct   { font-size:12px; color:rgba(255,255,255,.25); font-family:'DM Mono',monospace; margin-bottom:36px; }
+    .round-btns  { display:flex; gap:10px; justify-content:center; }
+
+    /* ── MASTERED view ───────────────────────────── */
+    #view-mastered {
+      position:fixed; inset:0; background:#07070f; z-index:20;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      text-align:center; padding:32px;
+    }
+    .mastered-icon  { font-size:64px; margin-bottom:24px; animation:float 4s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+    .mastered-title { font-size:36px; font-weight:300; color:#fff; letter-spacing:-.5px; margin-bottom:12px; }
+    .mastered-acc   { font-size:14px; color:rgba(255,255,255,.4); margin-bottom:36px; }
+
+    /* Shared button styles for overlay screens */
+    .ov-btn {
+      background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:11px;
+      color:#fff; font-size:13px; font-weight:600; padding:12px 26px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .18s;
+    }
+    .ov-btn:hover { background:rgba(255,255,255,.13); }
+    .ov-btn.primary { background:#fff; color:#000; border-color:#fff; }
+    .ov-btn.primary:hover { filter:brightness(.94); }
+
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+<div class="pluto-page">
+  <div class="pluto-page-bg"></div>
+  <canvas class="pluto-stars-canvas" id="stars"></canvas>
+
+  <!-- ── PICKER VIEW ────────────────────────────────── -->
+  <div id="view-picker">
+    <header class="pluto-page-header">
+      <button class="pluto-back-btn" onclick="window.close()">← Back</button>
+      <span class="pluto-page-title">LEARN MODE</span>
+      <div style="width:80px"></div>
+    </header>
+    <div class="picker-wrap">
+      <h2 class="picker-heading">Choose a set</h2>
+      <p class="picker-sub">Pick a flashcard set to start an adaptive learning session.</p>
+      <div id="picker-grid"></div>
+    </div>
+  </div>
+
+  <!-- ── LEARN VIEW (fixed overlay) ───────────────── -->
+  <div id="view-learn" class="hidden">
+    <div id="learn-header">
+      <button class="exit-btn" id="exit-btn">✕ Exit</button>
+      <div id="prog-wrap">
+        <div id="prog-bar"><div id="prog-fill"></div></div>
+        <span id="prog-text">0 / 0 mastered</span>
+      </div>
+      <div id="streak-badge">0</div>
+    </div>
+
+    <div id="learn-body">
+      <div id="set-label">—</div>
+
+      <div id="question-card">
+        <div id="q-label">DEFINITION</div>
+        <div id="q-text">…</div>
+        <div id="mode-badge"></div>
+      </div>
+
+      <!-- MC choices -->
+      <div id="mc-section">
+        <div id="choices-grid"></div>
+      </div>
+
+      <!-- Write mode -->
+      <div id="write-section" class="hidden">
+        <input class="write-input" id="write-in" placeholder="Type the term…" autocomplete="off" spellcheck="false"/>
+        <button id="write-check">Check →</button>
+      </div>
+
+      <!-- Feedback -->
+      <div class="feedback-box hidden" id="feedback-box"></div>
+
+      <!-- AI hint -->
+      <div id="hint-box" class="hidden"></div>
+
+      <!-- Continue -->
+      <button id="continue-btn" class="hidden">Continue →</button>
+    </div>
+  </div>
+
+  <!-- ── ROUND COMPLETE ─────────────────────────────── -->
+  <div id="view-round" class="hidden">
+    <div class="round-icon">🎯</div>
+    <h2 class="round-title" id="round-title">Round complete!</h2>
+    <p class="round-sub"  id="round-sub">—</p>
+    <p class="round-pct"  id="round-pct">—</p>
+    <div class="round-btns">
+      <button class="ov-btn" id="round-exit">Done</button>
+      <button class="ov-btn primary" id="round-continue">Keep going →</button>
+    </div>
+  </div>
+
+  <!-- ── SET MASTERED ───────────────────────────────── -->
+  <div id="view-mastered" class="hidden">
+    <div class="mastered-icon">🏆</div>
+    <h2 class="mastered-title" id="mastered-title">Set mastered!</h2>
+    <p class="mastered-acc" id="mastered-acc">—</p>
+    <div style="display:flex;gap:10px">
+      <button class="ov-btn primary" id="mastered-back">Done 🎉</button>
+    </div>
+  </div>
+
+  <canvas id="confetti-canvas" style="display:none"></canvas>
+</div>
+
+<script type="module" src="learn.js"></script>
+</body>
+</html>

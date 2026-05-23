@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pluto — Importer</title>
+  <link rel="stylesheet" href="pluto-shared.css">
+  <style>
+    body { background:#07070f; overflow-x:hidden; }
+    body::after {
+      content:''; position:fixed; inset:0; z-index:9999; pointer-events:none; opacity:.028;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size:180px;
+    }
+    .pluto-page-bg { background:radial-gradient(ellipse 80% 50% at 50% -10%, rgba(56,189,248,.06), transparent), #07070f; }
+    .wrap { max-width:780px; margin:0 auto; padding:36px 24px 80px; }
+
+    /* ── Source tabs ── */
+    .source-tabs { display:flex; gap:8px; margin-bottom:28px; flex-wrap:wrap; }
+    .src-tab {
+      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:10px;
+      padding:9px 18px; font-size:13px; color:rgba(255,255,255,.5); cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .15s;
+    }
+    .src-tab:hover  { background:rgba(255,255,255,.08); color:rgba(255,255,255,.8); }
+    .src-tab.active { background:rgba(56,189,248,.12); border-color:rgba(56,189,248,.35); color:#38bdf8; }
+
+    /* ── Source panels ── */
+    .src-panel { display:none; }
+    .src-panel.active { display:block; }
+
+    /* PDF drop zone */
+    #pdf-drop {
+      border:2px dashed rgba(255,255,255,.1); border-radius:16px;
+      padding:48px 24px; text-align:center; cursor:pointer; transition:all .2s;
+      background:rgba(255,255,255,.02);
+    }
+    #pdf-drop:hover, #pdf-drop.drag-over { border-color:rgba(56,189,248,.4); background:rgba(56,189,248,.04); }
+    #pdf-drop-icon { font-size:36px; margin-bottom:12px; }
+    #pdf-drop-label { font-size:14px; color:rgba(255,255,255,.5); margin-bottom:6px; }
+    #pdf-drop-sub   { font-size:11px; color:rgba(255,255,255,.25); font-family:'DM Mono',monospace; }
+    #pdf-file-input { display:none; }
+    #pdf-filename {
+      margin-top:14px; font-size:12px; color:#38bdf8; font-family:'DM Mono',monospace;
+      display:none; padding:8px 14px; background:rgba(56,189,248,.08);
+      border-radius:8px; border:1px solid rgba(56,189,248,.2);
+    }
+
+    /* YouTube */
+    .yt-row { display:flex; gap:10px; }
+    .url-input {
+      flex:1; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+      border-radius:10px; color:#fff; font-size:14px; font-family:'DM Sans',sans-serif;
+      padding:12px 16px; outline:none; transition:border .18s;
+    }
+    .url-input:focus { border-color:rgba(56,189,248,.4); }
+    #yt-fetch-btn {
+      background:rgba(56,189,248,.12); border:1px solid rgba(56,189,248,.3); border-radius:10px;
+      color:#38bdf8; font-size:13px; font-weight:600; padding:12px 20px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; white-space:nowrap; transition:all .15s;
+    }
+    #yt-fetch-btn:hover { background:rgba(56,189,248,.2); }
+    #yt-title { font-size:12px; color:rgba(255,255,255,.35); font-family:'DM Mono',monospace; margin-top:10px; min-height:18px; }
+
+    /* Audio */
+    #audio-controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    #rec-btn {
+      width:54px; height:54px; border-radius:50%;
+      background:rgba(251,113,133,.12); border:1px solid rgba(251,113,133,.3);
+      color:rgba(255,255,255,.8); font-size:22px; cursor:pointer; transition:all .2s;
+      display:flex; align-items:center; justify-content:center;
+    }
+    #rec-btn:hover { background:rgba(251,113,133,.22); }
+    #rec-btn.recording { background:rgba(255,95,95,.2); border-color:rgba(255,95,95,.6); animation:rec-pulse 1s ease-in-out infinite; }
+    @keyframes rec-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,95,95,.4)} 50%{box-shadow:0 0 0 10px rgba(255,95,95,0)} }
+    #rec-timer { font-size:18px; font-weight:600; color:#fff; font-family:'DM Mono',monospace; letter-spacing:2px; }
+    #rec-status { font-size:12px; color:rgba(255,255,255,.35); }
+    #audio-preview { margin-top:12px; display:none; }
+    audio { width:100%; border-radius:8px; accent-color:#38bdf8; }
+    .audio-or { font-size:11px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; letter-spacing:2px; margin:14px 0 12px; text-align:center; position:relative; }
+    .audio-or::before,.audio-or::after { content:''; position:absolute; top:50%; width:calc(50% - 20px); height:1px; background:rgba(255,255,255,.07); }
+    .audio-or::before { left:0; } .audio-or::after { right:0; }
+    #tab-capture-btn {
+      width:100%; padding:12px 16px; background:rgba(107,159,255,.1); border:1px solid rgba(107,159,255,.25);
+      border-radius:12px; color:rgba(107,159,255,.9); font-size:13px; font-weight:600; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .18s; text-align:left; display:flex; align-items:center; gap:10px;
+    }
+    #tab-capture-btn:hover { background:rgba(107,159,255,.18); }
+    #tab-capture-btn.recording { background:rgba(255,95,95,.15); border-color:rgba(255,95,95,.4); color:#ff7f7f; animation:rec-pulse 1s ease-in-out infinite; }
+    #tab-capture-hint { font-size:11px; color:rgba(255,255,255,.25); font-family:'DM Mono',monospace; margin-top:7px; }
+
+    /* Text paste */
+    .text-paste-area {
+      width:100%; min-height:180px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+      border-radius:12px; color:#fff; font-size:14px; font-family:'DM Sans',sans-serif;
+      padding:14px 16px; outline:none; resize:vertical; transition:border .18s;
+      line-height:1.6;
+    }
+    .text-paste-area:focus { border-color:rgba(56,189,248,.35); }
+
+    /* Shared fallback transcript area */
+    #fallback-area { margin-top:16px; display:none; }
+    #fallback-label { font-size:11px; color:rgba(232,184,75,.7); font-family:'DM Mono',monospace; margin-bottom:8px; letter-spacing:1px; }
+    #fallback-textarea {
+      width:100%; min-height:120px; background:rgba(255,255,255,.04); border:1px solid rgba(232,184,75,.2);
+      border-radius:10px; color:#fff; font-size:13px; font-family:'DM Sans',sans-serif;
+      padding:12px 14px; outline:none; resize:vertical; line-height:1.6;
+    }
+
+    /* ── Output options ── */
+    .output-label { font-size:10px; letter-spacing:2px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; margin:24px 0 10px; }
+    .output-grid  { display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-bottom:22px; }
+    @media(max-width:480px) { .output-grid { grid-template-columns:1fr; } }
+    .out-btn {
+      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:11px;
+      padding:14px 16px; font-size:13px; color:rgba(255,255,255,.6); cursor:pointer; text-align:left;
+      transition:all .15s; font-family:'DM Sans',sans-serif;
+    }
+    .out-btn:hover  { background:rgba(255,255,255,.08); color:#fff; }
+    .out-btn.active { background:rgba(56,189,248,.1); border-color:rgba(56,189,248,.35); color:#38bdf8; }
+    .out-btn-icon   { font-size:18px; display:block; margin-bottom:5px; }
+    .out-btn-name   { font-weight:600; display:block; margin-bottom:2px; }
+    .out-btn-desc   { font-size:11px; opacity:.6; }
+
+    /* ── Card count picker ── */
+    #card-count-row {
+      display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap;
+    }
+    #card-count-label { font-size:11px; letter-spacing:1.5px; color:rgba(255,255,255,.25); font-family:'DM Mono',monospace; white-space:nowrap; }
+    .count-pill {
+      padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+      font-family:'DM Sans',sans-serif; border:1px solid rgba(255,255,255,.1);
+      background:rgba(255,255,255,.04); color:rgba(255,255,255,.5); transition:all .15s;
+    }
+    .count-pill:hover  { background:rgba(255,255,255,.1); color:#fff; }
+    .count-pill.active { background:rgba(56,189,248,.15); border-color:rgba(56,189,248,.4); color:#38bdf8; }
+
+    /* ── Generate button ── */
+    #generate-btn {
+      width:100%; padding:14px; background:#38bdf8; color:#000; border:none; border-radius:12px;
+      font-size:14px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif;
+      transition:all .18s; margin-bottom:28px;
+    }
+    #generate-btn:hover { filter:brightness(.92); }
+    #generate-btn:disabled { opacity:.35; cursor:default; }
+
+    /* ── Progress bar ── */
+    #gen-progress { display:none; margin-bottom:20px; }
+    #gen-progress-bar {
+      height:3px; background:rgba(255,255,255,.06); border-radius:2px; overflow:hidden; margin-bottom:8px;
+    }
+    #gen-progress-fill { height:100%; background:#38bdf8; border-radius:2px; width:0%; transition:width .4s ease; }
+    #gen-progress-label { font-size:11px; color:rgba(255,255,255,.3); font-family:'DM Mono',monospace; }
+
+    /* ── Result area ── */
+    #result-area { display:none; }
+
+    /* Flashcard preview */
+    #cards-preview { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; max-height:380px; overflow-y:auto; }
+    .preview-card {
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:11px;
+      padding:13px 16px; display:flex; gap:12px; align-items:flex-start;
+    }
+    .preview-card-idx  { font-size:10px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; min-width:20px; padding-top:2px; }
+    .preview-card-body { flex:1; }
+    .preview-term { font-size:13px; font-weight:600; color:#fff; margin-bottom:3px; }
+    .preview-def  { font-size:12px; color:rgba(255,255,255,.45); line-height:1.5; }
+    .preview-card .del-btn {
+      background:none; border:none; color:rgba(255,95,95,.4); font-size:14px; cursor:pointer;
+      padding:0; transition:color .15s; flex-shrink:0;
+    }
+    .preview-card .del-btn:hover { color:#ff5f5f; }
+
+    /* Notes/guide/questions output */
+    #text-output {
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:13px;
+      padding:20px 22px; font-size:13px; color:rgba(255,255,255,.7); line-height:1.75;
+      white-space:pre-wrap; max-height:440px; overflow-y:auto; margin-bottom:20px;
+      font-family:'DM Sans',sans-serif;
+    }
+
+    /* Save actions */
+    #save-row { display:flex; gap:10px; flex-wrap:wrap; }
+    .save-btn {
+      background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:10px;
+      color:#fff; font-size:13px; font-weight:600; padding:11px 22px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .18s;
+    }
+    .save-btn:hover { background:rgba(255,255,255,.13); }
+    .save-btn.primary { background:#fff; color:#000; border-color:#fff; }
+    .save-btn.primary:hover { filter:brightness(.94); }
+
+    /* Add to set dropdown */
+    #add-to-select {
+      background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:10px;
+      color:#fff; font-size:13px; padding:11px 14px; font-family:'DM Sans',sans-serif;
+      outline:none; cursor:pointer; transition:border .15s;
+    }
+    #add-to-select:focus { border-color:rgba(56,189,248,.4); }
+
+    /* new-set name input */
+    #new-set-name-row { display:flex; gap:10px; margin-top:12px; display:none; }
+    #new-set-name {
+      flex:1; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+      border-radius:10px; color:#fff; font-size:14px; font-family:'DM Sans',sans-serif;
+      padding:11px 14px; outline:none; transition:border .18s;
+    }
+    #new-set-name:focus { border-color:rgba(56,189,248,.4); }
+    #new-set-name::placeholder { color:rgba(255,255,255,.25); }
+
+    .section-eyebrow { font-size:10px; letter-spacing:2px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; margin-bottom:8px; }
+    .page-heading { font-size:26px; font-weight:300; color:#fff; letter-spacing:-.4px; margin-bottom:6px; }
+    .page-sub { font-size:13px; color:rgba(255,255,255,.3); margin-bottom:28px; }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+<div class="pluto-page">
+  <div class="pluto-page-bg"></div>
+  <canvas class="pluto-stars-canvas" id="stars"></canvas>
+
+  <header class="pluto-page-header">
+    <button class="pluto-back-btn" onclick="history.back()">← Back</button>
+    <span class="pluto-page-title">IMPORTER</span>
+    <div style="width:80px"></div>
+  </header>
+
+  <div class="wrap">
+    <div class="section-eyebrow">Import Source</div>
+    <h2 class="page-heading">Turn anything into flashcards</h2>
+    <p class="page-sub">Upload a PDF, paste a YouTube link, record audio, or paste text — Pluto handles the rest.</p>
+
+    <!-- Source tabs -->
+    <div class="source-tabs">
+      <div class="src-tab active" data-tab="pdf">📄 PDF</div>
+      <div class="src-tab" data-tab="yt">▶️ YouTube</div>
+      <div class="src-tab" data-tab="audio">🎙️ Record</div>
+      <div class="src-tab" data-tab="text">📝 Paste Text</div>
+    </div>
+
+    <!-- PDF panel -->
+    <div class="src-panel active" id="panel-pdf">
+      <div id="pdf-drop">
+        <div id="pdf-drop-icon">📄</div>
+        <div id="pdf-drop-label">Drop a PDF here, or click to browse</div>
+        <div id="pdf-drop-sub">Max ~20 MB · Text-based PDFs work best</div>
+      </div>
+      <input type="file" id="pdf-file-input" accept=".pdf">
+      <div id="pdf-filename"></div>
+    </div>
+
+    <!-- YouTube panel -->
+    <div class="src-panel" id="panel-yt">
+      <div class="yt-row">
+        <input class="url-input" id="yt-url" placeholder="https://www.youtube.com/watch?v=..." />
+        <button id="yt-fetch-btn">Fetch →</button>
+      </div>
+      <div id="yt-title"></div>
+      <div id="fallback-area">
+        <div id="fallback-label">⚠️ AUTO-FETCH FAILED — PASTE TRANSCRIPT MANUALLY</div>
+        <textarea id="fallback-textarea" placeholder="Paste the YouTube transcript or your own notes here…"></textarea>
+      </div>
+    </div>
+
+    <!-- Audio panel -->
+    <div class="src-panel" id="panel-audio">
+      <div id="audio-controls">
+        <button id="rec-btn">🎤</button>
+        <div>
+          <div id="rec-timer">0:00</div>
+          <div id="rec-status">Click microphone to start recording</div>
+        </div>
+      </div>
+      <div class="audio-or">OR</div>
+      <button id="tab-capture-btn">
+        <span>🖥</span>
+        <div>
+          <div style="font-size:13px">Capture Browser Tab Audio</div>
+          <div style="font-size:11px;opacity:.55;font-weight:400">Zoom, YouTube, Meet, lectures…</div>
+        </div>
+      </button>
+      <div id="tab-capture-hint">A picker will let you choose which tab or window to capture. Check "Share audio" in the dialog.</div>
+      <div id="audio-preview">
+        <audio id="audio-player" controls></audio>
+      </div>
+    </div>
+
+    <!-- Text panel -->
+    <div class="src-panel" id="panel-text">
+      <textarea class="text-paste-area" id="text-input" placeholder="Paste your notes, lecture transcript, textbook excerpt, or any study material here…"></textarea>
+    </div>
+
+    <!-- ── Output options ── -->
+    <div class="output-label">WHAT TO GENERATE</div>
+    <div class="output-grid">
+      <button class="out-btn active" data-mode="flashcards">
+        <span class="out-btn-icon">🃏</span>
+        <span class="out-btn-name">Flashcards</span>
+        <span class="out-btn-desc">Term + definition pairs</span>
+      </button>
+      <button class="out-btn" data-mode="notes">
+        <span class="out-btn-icon">📋</span>
+        <span class="out-btn-name">Study Notes</span>
+        <span class="out-btn-desc">Markdown summary</span>
+      </button>
+      <button class="out-btn" data-mode="questions">
+        <span class="out-btn-icon">❓</span>
+        <span class="out-btn-name">Practice Questions</span>
+        <span class="out-btn-desc">Q&A pairs for self-testing</span>
+      </button>
+      <button class="out-btn" data-mode="guide">
+        <span class="out-btn-icon">📖</span>
+        <span class="out-btn-name">Study Guide</span>
+        <span class="out-btn-desc">Structured reference doc</span>
+      </button>
+    </div>
+
+    <!-- Card count (flashcards only) -->
+    <div id="card-count-row">
+      <span id="card-count-label">HOW MANY CARDS</span>
+      <button class="count-pill" data-count="10">10</button>
+      <button class="count-pill active" data-count="20">20</button>
+      <button class="count-pill" data-count="30">30</button>
+      <button class="count-pill" data-count="40">40</button>
+      <button class="count-pill" data-count="50">50</button>
+    </div>
+
+    <!-- Generate -->
+    <button id="generate-btn" disabled>Generate →</button>
+
+    <!-- Progress -->
+    <div id="gen-progress">
+      <div id="gen-progress-bar"><div id="gen-progress-fill"></div></div>
+      <div id="gen-progress-label">Processing…</div>
+    </div>
+
+    <!-- Result -->
+    <div id="result-area">
+      <div class="section-eyebrow" style="margin-bottom:12px" id="result-label">FLASHCARDS — 0 CARDS</div>
+
+      <!-- Flashcard preview (mode = flashcards) -->
+      <div id="cards-preview"></div>
+
+      <!-- Text output (modes = notes/questions/guide) -->
+      <div id="text-output" class="hidden"></div>
+
+      <!-- Save actions -->
+      <div id="save-row">
+        <!-- Flashcard save options -->
+        <div id="save-flashcard-options">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="save-btn primary" id="save-new-btn">Save as new set</button>
+            <select id="add-to-select">
+              <option value="">Add to existing set…</option>
+            </select>
+            <button class="save-btn" id="add-to-btn">Add →</button>
+          </div>
+          <div id="new-set-name-row">
+            <input id="new-set-name" placeholder="Set name…" maxlength="60" />
+            <button class="save-btn primary" id="confirm-save-btn">Save ✓</button>
+          </div>
+        </div>
+        <!-- Text copy option (for non-flashcard modes) -->
+        <button class="save-btn hidden" id="copy-text-btn">Copy to clipboard</button>
+        <button class="save-btn hidden" id="save-as-cards-btn">Turn into flashcards instead</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="importer.js"></script>
+</body>
+</html>
