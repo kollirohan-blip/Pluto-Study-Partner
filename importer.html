@@ -212,6 +212,82 @@
     .page-heading { font-size:26px; font-weight:300; color:#fff; letter-spacing:-.4px; margin-bottom:6px; }
     .page-sub { font-size:13px; color:rgba(255,255,255,.3); margin-bottom:28px; }
     .hidden { display:none !important; }
+
+    /* ── Camera panel ── */
+    #cam-drop {
+      border:2px dashed rgba(255,255,255,.1); border-radius:16px;
+      padding:48px 24px; text-align:center; cursor:pointer; transition:all .2s;
+      background:rgba(255,255,255,.02);
+    }
+    #cam-drop:hover, #cam-drop.drag-over { border-color:rgba(56,189,248,.4); background:rgba(56,189,248,.04); }
+    .cam-upload-icon { margin-bottom:14px; color:rgba(255,255,255,.2); display:flex; justify-content:center; }
+    #cam-drop-label { font-size:14px; color:rgba(255,255,255,.5); margin-bottom:6px; }
+    #cam-drop-sub   { font-size:11px; color:rgba(255,255,255,.25); font-family:'DM Mono',monospace; }
+    #cam-file-input { display:none; }
+    #cam-preview-wrap { margin-top:16px; position:relative; }
+    #cam-preview-img  { width:100%; max-height:320px; object-fit:contain; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); display:block; }
+    #cam-clear-btn {
+      position:absolute; top:10px; right:10px;
+      background:rgba(0,0,0,.75); border:1px solid rgba(255,255,255,.15);
+      border-radius:8px; color:rgba(255,255,255,.8); font-size:11px;
+      padding:5px 11px; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .15s;
+    }
+    #cam-clear-btn:hover { background:rgba(200,50,50,.4); border-color:rgba(200,50,50,.5); }
+    #cam-course-row { display:flex; align-items:center; gap:12px; margin-top:16px; flex-wrap:wrap; }
+    #cam-course-label { font-size:11px; letter-spacing:1.5px; color:rgba(255,255,255,.25); font-family:'DM Mono',monospace; white-space:nowrap; }
+    #cam-course-select {
+      background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:10px;
+      color:#fff; font-size:13px; padding:9px 14px; font-family:'DM Sans',sans-serif;
+      outline:none; cursor:pointer; transition:border .15s; flex:1; min-width:160px;
+    }
+    #cam-course-select:focus { border-color:rgba(56,189,248,.4); }
+    #cam-course-select option { background:#111; }
+    #cam-generate-btn {
+      width:100%; padding:14px; margin-top:16px;
+      background:rgba(56,189,248,.12); border:1px solid rgba(56,189,248,.28); border-radius:12px;
+      color:#38bdf8; font-size:14px; font-weight:700; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .18s;
+      display:flex; align-items:center; justify-content:center; gap:8px;
+    }
+    #cam-generate-btn:hover:not(:disabled) { background:rgba(56,189,248,.22); }
+    #cam-generate-btn:disabled { opacity:.35; cursor:default; }
+    #cam-progress { margin-top:16px; display:none; }
+    #cam-progress-bar { height:3px; background:rgba(255,255,255,.06); border-radius:2px; overflow:hidden; margin-bottom:8px; }
+    #cam-progress-fill { height:100%; background:#38bdf8; border-radius:2px; width:0%; transition:width .45s ease; }
+    #cam-progress-label { font-size:11px; color:rgba(255,255,255,.3); font-family:'DM Mono',monospace; }
+    #cam-result { margin-top:24px; display:none; }
+    #cam-result-topic { font-size:10px; letter-spacing:2px; color:rgba(56,189,248,.7); font-family:'DM Mono',monospace; margin-bottom:14px; }
+    #cam-questions-list { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+    .cam-question-card {
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+      border-radius:12px; padding:14px 16px;
+    }
+    .cam-q-num  { font-size:10px; color:rgba(255,255,255,.2); font-family:'DM Mono',monospace; margin-bottom:6px; }
+    .cam-q-text { font-size:13px; color:#fff; line-height:1.55; margin-bottom:8px; font-weight:500; }
+    .cam-q-choices { display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
+    .cam-q-choice { font-size:12px; color:rgba(255,255,255,.4); padding:3px 0; line-height:1.45; }
+    .cam-q-choice.correct { color:rgba(79,217,142,.85); }
+    .cam-q-explanation { font-size:11px; color:rgba(255,255,255,.3); font-style:italic; margin-bottom:8px; line-height:1.5; }
+    .cam-q-standards { display:flex; flex-wrap:wrap; gap:5px; }
+    .cam-std-badge {
+      font-size:10px; color:#38bdf8; background:rgba(56,189,248,.1);
+      border:1px solid rgba(56,189,248,.2); border-radius:6px;
+      padding:2px 8px; font-family:'DM Mono',monospace;
+    }
+    #cam-actions { display:flex; gap:10px; flex-wrap:wrap; }
+    #cam-save-btn {
+      background:#38bdf8; border:none; border-radius:10px; color:#000;
+      font-size:13px; font-weight:700; padding:11px 22px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .18s;
+    }
+    #cam-save-btn:hover:not(:disabled) { filter:brightness(.9); }
+    #cam-save-btn:disabled { opacity:.45; cursor:default; }
+    #cam-another-btn {
+      background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:10px;
+      color:#fff; font-size:13px; font-weight:600; padding:11px 22px; cursor:pointer;
+      font-family:'DM Sans',sans-serif; transition:all .18s;
+    }
+    #cam-another-btn:hover { background:rgba(255,255,255,.13); }
   </style>
 </head>
 <body>
@@ -236,6 +312,7 @@
       <div class="src-tab" data-tab="yt">▶️ YouTube</div>
       <div class="src-tab" data-tab="audio">🎙️ Record</div>
       <div class="src-tab" data-tab="text">📝 Paste Text</div>
+      <div class="src-tab" data-tab="camera">📷 Camera</div>
     </div>
 
     <!-- PDF panel -->
@@ -288,6 +365,73 @@
     <!-- Text panel -->
     <div class="src-panel" id="panel-text">
       <textarea class="text-paste-area" id="text-input" placeholder="Paste your notes, lecture transcript, textbook excerpt, or any study material here…"></textarea>
+    </div>
+
+    <!-- Camera panel -->
+    <div class="src-panel" id="panel-camera">
+      <div id="cam-drop">
+        <div class="cam-upload-icon">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <div id="cam-drop-label">Drop a photo here, or click to browse</div>
+        <div id="cam-drop-sub">PNG · JPG · WEBP · Worksheets, textbook pages, handwritten notes</div>
+      </div>
+      <input type="file" id="cam-file-input" accept="image/png,image/jpeg,image/webp">
+
+      <div id="cam-preview-wrap" class="hidden">
+        <img id="cam-preview-img" alt="Image preview">
+        <button id="cam-clear-btn">✕ Remove</button>
+      </div>
+
+      <div id="cam-course-row" class="hidden">
+        <span id="cam-course-label">COURSE</span>
+        <select id="cam-course-select">
+          <option value="">Select AP course (optional)…</option>
+          <option value="ap-biology">AP Biology</option>
+          <option value="ap-chemistry">AP Chemistry</option>
+          <option value="ap-physics-1">AP Physics 1</option>
+          <option value="ap-physics-2">AP Physics 2</option>
+          <option value="ap-environmental-science">AP Environmental Science</option>
+          <option value="ap-calculus-ab">AP Calculus AB</option>
+          <option value="ap-calculus-bc">AP Calculus BC</option>
+          <option value="ap-statistics">AP Statistics</option>
+          <option value="ap-computer-science-a">AP Computer Science A</option>
+          <option value="ap-us-history">AP US History</option>
+          <option value="ap-world-history">AP World History</option>
+          <option value="ap-european-history">AP European History</option>
+          <option value="ap-us-government">AP US Government</option>
+          <option value="ap-psychology">AP Psychology</option>
+          <option value="ap-macroeconomics">AP Macroeconomics</option>
+          <option value="ap-microeconomics">AP Microeconomics</option>
+          <option value="ap-english-language">AP English Language</option>
+          <option value="ap-english-literature">AP English Literature</option>
+          <option value="ap-human-geography">AP Human Geography</option>
+          <option value="ap-art-history">AP Art History</option>
+        </select>
+      </div>
+
+      <button id="cam-generate-btn" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Generate Questions
+      </button>
+
+      <div id="cam-progress">
+        <div id="cam-progress-bar"><div id="cam-progress-fill"></div></div>
+        <div id="cam-progress-label">Analyzing image…</div>
+      </div>
+
+      <div id="cam-result">
+        <div id="cam-result-topic"></div>
+        <div id="cam-questions-list"></div>
+        <div id="cam-actions">
+          <button id="cam-save-btn">Save as Flashcards</button>
+          <button id="cam-another-btn">↩ Import Another Photo</button>
+        </div>
+      </div>
     </div>
 
     <!-- ── Output options ── -->

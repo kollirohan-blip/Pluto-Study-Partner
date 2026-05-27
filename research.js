@@ -10,7 +10,7 @@ const STATE = {
   aiHistory: []
 };
 
-const SERVER = 'http://localhost:3000/ask-aria';
+const SERVER = 'https://pluto-server-production.up.railway.app/ask-aria';
 
 // ── COINS / XP ────────────────────────────────────────────────
 function addReward(coins, xp, label) {

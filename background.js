@@ -72,7 +72,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // ── AI PROXY: content scripts can't reach localhost from HTTPS pages ──
   // Route through background (extension origin) which is exempt from PNA restrictions
   if (request.type === 'PLUTO_AI_REQUEST') {
-    fetch('http://localhost:3000/ask-aria', {
+    fetch('https://pluto-server-production.up.railway.app/ask-aria', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request.payload)

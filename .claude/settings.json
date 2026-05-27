@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(curl -s -X POST http://localhost:3000/retrieve-standards -H \"Content-Type: application/json\" -d \"{\\\\\"question\\\\\":\\\\\"equilibrium constant and ICE tables\\\\\",\\\\\"system\\\\\":\\\\\"ap\\\\\",\\\\\"course\\\\\":\\\\\"ap-chemistry\\\\\",\\\\\"k\\\\\":4}\")"
+      "Bash(curl -s -X POST http://localhost:3000/retrieve-standards -H \"Content-Type: application/json\" -d \"{\\\\\"question\\\\\":\\\\\"equilibrium constant and ICE tables\\\\\",\\\\\"system\\\\\":\\\\\"ap\\\\\",\\\\\"course\\\\\":\\\\\"ap-chemistry\\\\\",\\\\\"k\\\\\":4}\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('stripe'\\); console.log\\('stripe ok'\\)\")",
+      "Bash(curl -s -X POST https://pluto-server-production.up.railway.app/check-subscription -H \"Content-Type: application/json\" -d \"{\\\\\"userId\\\\\":\\\\\"test-user-123\\\\\"}\")",
+      "Bash(curl -s -X POST https://pluto-server-production.up.railway.app/create-checkout-session -H \"Content-Type: application/json\" -d \"{\\\\\"userId\\\\\":\\\\\"test-user-123\\\\\",\\\\\"interval\\\\\":\\\\\"monthly\\\\\"}\")",
+      "Bash(curl -s -X POST https://pluto-server-production.up.railway.app/create-checkout-session -H \"Content-Type: application/json\" -d '{\"userId\":\"test-user-123\",\"interval\":\"monthly\",\"successUrl\":\"https://pluto-extension.com/success\",\"cancelUrl\":\"https://pluto-extension.com/cancel\"}')",
+      "Bash(curl -s -X POST https://pluto-server-production.up.railway.app/create-checkout-session -H \"Content-Type: application/json\" -d '{\"userId\":\"test-user-123\",\"interval\":\"monthly\",\"successUrl\":\"https://example.com/success\",\"cancelUrl\":\"https://example.com/cancel\"}')"
     ],
     "additionalDirectories": [
       "C:\\Users\\Kolli\\OneDrive\\Desktop\\Aria-server"

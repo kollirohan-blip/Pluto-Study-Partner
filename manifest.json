@@ -33,7 +33,7 @@
     "default_path": "popup.html"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src http://localhost:3000 http://127.0.0.1:3000 https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com wss://*.firebaseio.com https://www.youtube.com https://i.ytimg.com"
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src http://localhost:3000 http://127.0.0.1:3000 https://pluto-server-production.up.railway.app https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com wss://*.firebaseio.com https://www.youtube.com https://i.ytimg.com"
   },
   "action": {
     "default_title": "Open Pluto"

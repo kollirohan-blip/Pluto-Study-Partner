@@ -257,50 +257,87 @@ async function sendMessage() {
   const activeChat=chats.find(c=>c.id===activeChatId);
   const history=(activeChat?.messages||[]).slice(-6).map(m=>({text:m.text,sender:m.role==='user'?'user':'ai'}));
   currentAbortController=new AbortController(); const {signal}=currentAbortController;
-  let reply='', firstChunk=true, gotBrainEvent=false;
+  let reply='', firstChunk=true, gotBrainEvent=false, streamSucceeded=false;
+  const ctx=await getPageContext();
   try {
-    const ctx=await getPageContext();
-    const r=await fetch('http://localhost:3000/ask-aria-stream',{method:'POST',signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,profile:userProfile||{name:'Student'},pageContext:ctx,history,tutorMode:tutorActive})});
+    const r=await fetch('https://pluto-server-production.up.railway.app/ask-aria-stream',{method:'POST',signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,profile:userProfile||{name:'Student'},pageContext:ctx,history,tutorMode:tutorActive})});
     const reader=r.body.getReader(), decoder=new TextDecoder();
     let buf='';
-    while(true){
-      const {done,value}=await reader.read(); if(done) break;
-      buf+=decoder.decode(value,{stream:true});
-      const events=buf.split('\n\n'); buf=events.pop();
-      for(const ev of events){
-        if(!ev.trim()) continue;
-        const lines=ev.split('\n');
-        const etype=lines.find(l=>l.startsWith('event:'))?.slice(7).trim();
-        const dline=lines.find(l=>l.startsWith('data:'))?.slice(5).trim();
-        if(!etype||!dline) continue;
-        let data; try{data=JSON.parse(dline);}catch{continue;}
-        if(etype==='brain'){
-          gotBrainEvent=true;
-          updateBrainStats(data.matches||[],data.totalBrainSize??null);
-        } else if(etype==='chunk'){
-          if(firstChunk){cleanup();firstChunk=false;thinkBub.className='ai-bubble';thinkBub.innerHTML='';}
-          reply+=data.text; thinkBub.innerHTML=fmt(reply);
-          chatBox.scrollTo({top:chatBox.scrollHeight,behavior:'smooth'});
-        } else if(etype==='done'){
-          cleanup(); thinkBub.innerHTML=fmt(reply);
-          chatBox.scrollTo({top:chatBox.scrollHeight,behavior:'smooth'});
-          if(activeChat){
-            activeChat.messages.push({role:'user',text,timestamp:Date.now()-500},{role:'assistant',text:reply,timestamp:Date.now()});
-            if(activeChat.messages.length===2){activeChat.title=text.slice(0,40)+(text.length>40?'…':'');chatTitleEl.textContent=activeChat.title;}
-            activeChat.updated=Date.now(); saveChats(); renderSidebar();
+    // Reject if no chunk arrives within 5 seconds
+    let firstChunkTimer, firstChunkReject;
+    const firstChunkTimeout=new Promise((_,rej)=>{firstChunkReject=rej;firstChunkTimer=setTimeout(()=>rej(new Error('stream_timeout')),5000);});
+    const readLoop=async()=>{
+      while(true){
+        const {done,value}=await reader.read(); if(done) break;
+        buf+=decoder.decode(value,{stream:true});
+        const events=buf.split('\n\n'); buf=events.pop();
+        for(const ev of events){
+          if(!ev.trim()) continue;
+          const lines=ev.split('\n');
+          const etype=lines.find(l=>l.startsWith('event:'))?.slice(7).trim();
+          const dline=lines.find(l=>l.startsWith('data:'))?.slice(5).trim();
+          if(!etype||!dline) continue;
+          let data; try{data=JSON.parse(dline);}catch{continue;}
+          if(etype==='brain'){
+            gotBrainEvent=true;
+            updateBrainStats(data.matches||[],data.totalBrainSize??null);
+          } else if(etype==='chunk'){
+            if(firstChunk){
+              firstChunk=false; streamSucceeded=true;
+              clearTimeout(firstChunkTimer);
+              cleanup(); thinkBub.className='ai-bubble'; thinkBub.innerHTML='';
+            }
+            reply+=data.text; thinkBub.innerHTML=fmt(reply);
+            chatBox.scrollTo({top:chatBox.scrollHeight,behavior:'smooth'});
+          } else if(etype==='done'){
+            clearTimeout(firstChunkTimer);
+            cleanup(); thinkBub.innerHTML=fmt(reply);
+            chatBox.scrollTo({top:chatBox.scrollHeight,behavior:'smooth'});
+            if(activeChat){
+              activeChat.messages.push({role:'user',text,timestamp:Date.now()-500},{role:'assistant',text:reply,timestamp:Date.now()});
+              if(activeChat.messages.length===2){activeChat.title=text.slice(0,40)+(text.length>40?'…':'');chatTitleEl.textContent=activeChat.title;}
+              activeChat.updated=Date.now(); saveChats(); renderSidebar();
+            }
+            if(!gotBrainEvent) updateBrainStats([],null);
+            chrome.runtime.sendMessage({ type: 'REFRESH_BRAIN_STATS' });
+          } else if(etype==='error'){
+            clearTimeout(firstChunkTimer);
+            cleanup(); thinkBub.className='error-bubble';
+            thinkBub.innerHTML=`<strong>Error:</strong> ${escHtml(data.message||'Something went wrong')}`;
           }
-          if(!gotBrainEvent) updateBrainStats([],null);
-          chrome.runtime.sendMessage({ type: 'REFRESH_BRAIN_STATS' });
-        } else if(etype==='error'){
-          cleanup(); thinkBub.className='error-bubble';
-          thinkBub.innerHTML=`<strong>Error:</strong> ${escHtml(data.message||'Something went wrong')}`;
         }
       }
-    }
+    };
+    await Promise.race([readLoop(), firstChunkTimeout]);
   } catch(e) {
-    cleanup();
-    if(e.name==='AbortError') thinkRow.remove();
-    else{thinkBub.className='error-bubble';thinkBub.innerHTML=`<strong>Pluto can't reach the server.</strong><br>Make sure it's running on port 3000.`;}
+    if(e.name==='AbortError'){cleanup();thinkRow.remove();}
+    else if(!streamSucceeded){
+      // Streaming failed or no chunks in 5 s — fall back to /ask-aria
+      cleanup();
+      thinkBub.className='thinking-bubble';
+      thinkBub.innerHTML=`<div class="thinking-dots"><div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div></div><div class="thinking-status">Switching to fallback...</div>`;
+      try {
+        const fallbackR=await fetch('https://pluto-server-production.up.railway.app/ask-aria',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,profile:userProfile||{name:'Student'},pageContext:ctx,history,tutorMode:tutorActive})});
+        const fallbackD=await fallbackR.json();
+        reply=fallbackD.reply||'';
+        thinkBub.className='ai-bubble'; thinkBub.innerHTML=fmt(reply);
+        chatBox.scrollTo({top:chatBox.scrollHeight,behavior:'smooth'});
+        if(activeChat){
+          activeChat.messages.push({role:'user',text,timestamp:Date.now()-500},{role:'assistant',text:reply,timestamp:Date.now()});
+          if(activeChat.messages.length===2){activeChat.title=text.slice(0,40)+(text.length>40?'…':'');chatTitleEl.textContent=activeChat.title;}
+          activeChat.updated=Date.now(); saveChats(); renderSidebar();
+        }
+        updateBrainStats([],null);
+        chrome.runtime.sendMessage({ type: 'REFRESH_BRAIN_STATS' });
+      } catch {
+        thinkBub.className='error-bubble';
+        thinkBub.innerHTML=`<strong>Pluto can't reach the server.</strong><br>Check your connection and try again.`;
+      }
+    } else {
+      cleanup();
+      thinkBub.className='error-bubble';
+      thinkBub.innerHTML=`<strong>Pluto can't reach the server.</strong><br>Check your connection and try again.`;
+    }
   } finally{currentAbortController=null;unlockInput();userInput.focus();}
 }
 function unlockInput(){isRequesting=false;sendBtn.disabled=false;sendBtn.innerHTML=SEND_SVG;userInput.disabled=false;document.getElementById('input-row').classList.remove('locked');}
@@ -350,7 +387,7 @@ async function getPageContext() {
   });
 }
 async function callServer(message,extra={}){
-  const r=await fetch('http://localhost:3000/ask-aria',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,profile:userProfile||{name:'Student'},pageContext:extra.ctx||{url:'Unknown',title:'Unknown',text:''},history:extra.history||[],tutorMode:extra.tutor||false})});
+  const r=await fetch('https://pluto-server-production.up.railway.app/ask-aria',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,profile:userProfile||{name:'Student'},pageContext:extra.ctx||{url:'Unknown',title:'Unknown',text:''},history:extra.history||[],tutorMode:extra.tutor||false})});
   const d=await r.json(); return d.reply;
 }
 function parseJSON(raw){const s=raw.indexOf('['),e=raw.lastIndexOf(']');if(s===-1||e===-1)throw new Error('No JSON array');return JSON.parse(raw.slice(s,e+1));}

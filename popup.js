@@ -87,7 +87,7 @@ async function getPageContext() {
 }
 
 async function callServer(message, extra = {}) {
-  const r = await fetch('http://localhost:3000/ask-aria', {
+  const r = await fetch('https://pluto-server-production.up.railway.app/ask-aria', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       message,
@@ -643,8 +643,96 @@ document.getElementById('btn-tutor').addEventListener('click', ()=>{
     : "Tutor mode off.", 'auto');
 });
 
+// ── Subscription helpers (popup context — no ES module imports) ───────────────
+async function getPopupUserId() {
+  return new Promise(resolve => {
+    chrome.storage.local.get('plutoUserId', ({ plutoUserId }) => {
+      if (plutoUserId) return resolve(plutoUserId);
+      const id = 'u_' + Math.random().toString(36).slice(2, 12);
+      chrome.storage.local.set({ plutoUserId: id }, () => resolve(id));
+    });
+  });
+}
+
+async function checkPopupSubscription() {
+  return new Promise(resolve => {
+    chrome.storage.local.get(['plutoSubTier', 'plutoSubCheckedAt'], async ({ plutoSubTier, plutoSubCheckedAt }) => {
+      const CACHE_TTL = 10 * 60 * 1000;
+      if (plutoSubTier && plutoSubCheckedAt && (Date.now() - plutoSubCheckedAt) < CACHE_TTL) {
+        return resolve({ tier: plutoSubTier, canUseAutomation: plutoSubTier === 'premium' });
+      }
+      try {
+        const userId = await getPopupUserId();
+        const r = await fetch('https://pluto-server-production.up.railway.app/check-subscription', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        });
+        const data = await r.json();
+        chrome.storage.local.set({ plutoSubTier: data.tier, plutoSubCheckedAt: Date.now() });
+        resolve(data);
+      } catch {
+        resolve({ tier: plutoSubTier || 'free', canUseAutomation: false });
+      }
+    });
+  });
+}
+
+function showPopupPaywallModal(featureName) {
+  // Remove any existing modal first
+  document.getElementById('popup-paywall-modal')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'popup-paywall-modal';
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.82);backdrop-filter:blur(6px);
+  `;
+  overlay.innerHTML = `
+    <div style="background:#0a0a14;border:1px solid rgba(255,255,255,.12);border-radius:16px;
+                padding:28px 24px;width:300px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.7);">
+      <div style="font-size:30px;margin-bottom:10px">⭐</div>
+      <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:6px">Pluto Premium</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:20px;line-height:1.6">
+        ${featureName} is a Premium feature.<br>Upgrade to unlock it.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+        <button id="ppw-monthly" style="background:#4f8ef7;color:#fff;border:none;border-radius:9px;
+          padding:11px;font-size:13px;font-weight:600;cursor:pointer;">Monthly — $5.99/mo</button>
+        <button id="ppw-annual" style="background:rgba(255,255,255,.07);color:#fff;
+          border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:11px;
+          font-size:13px;font-weight:600;cursor:pointer;">
+          Annual — $59.99/yr &nbsp;<span style="font-size:11px;color:#5ef8a0">Save 50%</span>
+        </button>
+      </div>
+      <button id="ppw-close" style="background:none;border:none;color:rgba(255,255,255,.25);
+        font-size:12px;cursor:pointer;text-decoration:underline">Maybe later</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  async function startCheckout(interval) {
+    try {
+      const userId = await getPopupUserId();
+      const r = await fetch('https://pluto-server-production.up.railway.app/create-checkout-session', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, interval }),
+      });
+      const { url, error } = await r.json();
+      if (error) { addMsg('Checkout error: ' + error, 'auto'); return; }
+      chrome.tabs.create({ url });
+    } catch {
+      addMsg('Could not reach server.', 'auto');
+    }
+    overlay.remove();
+  }
+
+  overlay.querySelector('#ppw-monthly').addEventListener('click', () => startCheckout('monthly'));
+  overlay.querySelector('#ppw-annual').addEventListener('click',  () => startCheckout('annual'));
+  overlay.querySelector('#ppw-close').addEventListener('click',   () => overlay.remove());
+}
+
 // 🤖 Automate
-document.getElementById('btn-automate').addEventListener('click', ()=>{
+document.getElementById('btn-automate').addEventListener('click', async ()=>{
   if (automateActive) {
     automateActive=false;
     document.getElementById('btn-automate').classList.remove('active');
@@ -663,6 +751,8 @@ document.getElementById('btn-automate').addEventListener('click', ()=>{
     addAutoLog('Automation stopped');
     return;
   }
+
+  // PAYWALL DISABLED
   automateActive=true;
   document.getElementById('btn-automate').classList.add('active');
   autoPill.classList.remove('hidden');

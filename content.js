@@ -62,7 +62,7 @@ async function aiMCQ(question, choices) {
   if (!choices.length) return 0;
   try {
     const d = await askAI({
-      message: `You are taking a quiz. Reply with ONLY the single digit index number of the correct answer (0, 1, 2, or 3). Nothing else — just the number.\nQuestion: "${question.slice(0,300)}"\nOptions:\n${choices.map((c,i)=>`${i}: ${c.slice(0,150)}`).join('\n')}`,
+      message: `You are taking a quiz. Reply with ONLY the single digit index number of the correct answer (0, 1, 2, or 3). Nothing else — just the number. Pick the best possible answer.\nQuestion: "${question.slice(0,300)}"\nOptions:\n${choices.map((c,i)=>`${i}: ${c.slice(0,150)}`).join('\n')}`,
       profile: { name: 'AutoBot' },
       pageContext: { url: location.href, title: document.title, text: '' },
       history: [], tutorMode: false
@@ -76,12 +76,17 @@ async function aiMCQ(question, choices) {
 async function aiText(question) {
   try {
     const d = await askAI({
-      message: `Answer with ONLY the answer word or short phrase. No punctuation at the end. Nothing else.\nQuestion: "${question.slice(0,300)}"`,
+      message: `Answer with ONLY the answer word or short phrase. No punctuation at the end. Nothing else. Be concise and accurate.\nQuestion: "${question.slice(0,300)}"`,
       profile: { name: 'AutoBot' },
       pageContext: { url: location.href, title: document.title, text: '' },
       history: [], tutorMode: false
     });
-    return d.reply.trim().split('\n')[0].replace(/["""*]/g, '').trim();
+    let answer = d.reply.trim().split('\n')[0].replace(/["""*]/g, '').trim();
+    // Remove common prefixes that AI adds
+    answer = answer.replace(/^(the answer is|answer:|the correct answer is|correct answer:)\s*/i, '').trim();
+    // Remove trailing explanations
+    answer = answer.split(/\s*[\.\!\?]\s*/)[0].trim();
+    return answer;
   } catch { return ''; }
 }
 
@@ -278,7 +283,7 @@ window.runCanvas = async function runCanvas() {
       await sleep(300);
     }
 
-    // ── Dropdowns ──
+    // ── Dropdowns (both select elements and custom dropdown inputs) ──
     for (const sel of document.querySelectorAll('select:not([disabled])')) {
       if (!sel.offsetParent) continue;
       const sid = 'sel_' + (sel.name || sel.id || Math.random());
@@ -296,6 +301,23 @@ window.runCanvas = async function runCanvas() {
       acted = true;
       report(`✓ Dropdown Q${answered}`, { answered, skipped });
       await sleep(300);
+    }
+
+    // ── Custom Dropdown/Combobox inputs (type into dropdown) ──
+    for (const input of document.querySelectorAll('input[role="combobox"]:not([disabled]),input[aria-haspopup="listbox"]:not([disabled])')) {
+      if (!input.offsetParent || input.value?.trim()) continue;
+      const iid = 'cmb_' + (input.name || input.id || Math.random());
+      if (answeredGroups.has(iid)) continue;
+      const qText = input.closest('[class*="question"]')?.querySelector('p,span,label')?.textContent?.trim() || 'Select';
+      const ans = await aiText(qText);
+      if (ans) {
+        await typeInto(input, ans);
+        answeredGroups.add(iid);
+        answered++;
+        acted = true;
+        report(`✓ Combobox Q${answered}: ${ans.slice(0, 25)}`, { answered, skipped });
+        await sleep(500);
+      }
     }
 
     // ── Text inputs ──
@@ -647,6 +669,33 @@ function _mbBtn(doc, texts) {
   return candidates[0].el;
 }
 
+async function _mbVisionFallback() {
+  const shot = await new Promise(resolve => {
+    chrome.runtime.sendMessage({ type: 'PLUTO_SCREENSHOT' }, r => {
+      if (chrome.runtime.lastError || !r?.dataUrl) resolve(null);
+      else resolve(r.dataUrl);
+    });
+  });
+
+  if (!shot) return null;
+
+  const instruction = await askVision(shot, 'membean');
+  return instruction;
+}
+
+function _mbHasImages(doc) {
+  const root = _mbAnswerContainer(doc);
+  const imgs = root.querySelectorAll('img[src]:not([src*="icon"]):not([src*="svg"])');
+  const pictureElems = root.querySelectorAll('picture');
+  const hasImageContent = imgs.length > 0 || pictureElems.length > 0;
+  
+  // Also check for image-based text indicators
+  const qText = _mbQuestion(doc).toLowerCase();
+  const isImageQuestion = /\b(image|picture|diagram|chart|graph|shown|illustrat|visual)\b/i.test(qText);
+  
+  return hasImageContent || isImageQuestion;
+}
+
 window.runMembean = async function runMembean() {
   console.log('[Pluto] Starting Membean automation');
   let answered = 0, skipped = 0, stuck = 0;
@@ -676,17 +725,36 @@ window.runMembean = async function runMembean() {
     const answerRoot = _mbAnswerContainer(doc);
     const alreadyAnswered = _mbIsAnsweredState(answerRoot);
     if (choices.length >= 2 && !alreadyAnswered) {
-      const q = _mbQuestion(doc);
-      const labels = choices.map(c => c.textContent?.trim() || '');
-      const best = await aiMCQ(q, labels);
-      console.log(`[Pluto] Question: "${q}", Choices: [${labels.join(', ')}], Best: ${best} (${labels[best]})`);
-      await jitter();
-      choices[best]?.click();
-      answered++;
-      report(`✓ Q${answered}: "${labels[best]?.slice(0, 30)}"`, { answered, skipped });
-      await sleep(1000 + Math.random() * 500);
-      acted = true;
-      stuck = 0;
+      // Check if this is an image-based question
+      const hasImages = _mbHasImages(doc);
+      if (hasImages) {
+        console.log('[Pluto] Image-based question detected — switching to vision mode');
+        // Use vision mode for image questions
+        const instruction = await _mbVisionFallback();
+        if (instruction && instruction.action === 'click') {
+          const x = Math.round(instruction.x * window.innerWidth / 100);
+          const y = Math.round(instruction.y * window.innerHeight / 100);
+          clickAt(x, y);
+          answered++;
+          report(`✓ Q${answered} (vision): "${instruction.label || 'Image-based'}"`, { answered, skipped });
+          await sleep(1000 + Math.random() * 500);
+          acted = true;
+          stuck = 0;
+        }
+      } else {
+        // Normal text-based MCQ
+        const q = _mbQuestion(doc);
+        const labels = choices.map(c => c.textContent?.trim() || '');
+        const best = await aiMCQ(q, labels);
+        console.log(`[Pluto] Question: "${q}", Choices: [${labels.join(', ')}], Best: ${best} (${labels[best]})`);
+        await jitter();
+        choices[best]?.click();
+        answered++;
+        report(`✓ Q${answered}: "${labels[best]?.slice(0, 30)}"`, { answered, skipped });
+        await sleep(1000 + Math.random() * 500);
+        acted = true;
+        stuck = 0;
+      }
     } else if (choices.length >= 2 && alreadyAnswered) {
       console.log('[Pluto] Skipping MCQ branch: answer already selected/review state');
     }

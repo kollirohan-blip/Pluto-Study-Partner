@@ -1,4 +1,4 @@
-﻿import { initStarCanvas, askAI, storage, toast, logActivity } from './pluto-shared.js';
+﻿import { initStarCanvas, askAI, storage, toast, logActivity, requirePremium } from './pluto-shared.js';
 
 // Renders $...$ (inline) and $$...$$ (display) LaTeX in any DOM element.
 function renderMath(el) {
@@ -57,6 +57,7 @@ function showOnly(id) {
 }
 
 async function init() {
+  if (!await requirePremium('Practice Test')) return;
   initStarCanvas($('stars'));
   const { plutoSets = [] } = await storage.get('plutoSets');
   sets = plutoSets;
@@ -159,7 +160,7 @@ async function buildAPGrid() {
 
   let apCourses = [];
   try {
-    const r = await fetch('http://localhost:3000/courses');
+    const r = await fetch('https://pluto-server-production.up.railway.app/courses');
     const data = await r.json();
     apCourses = data.ap || [];
   } catch {
@@ -271,7 +272,7 @@ async function fetchGeneratedTest(exam, forceRegen = false, mode = 'quick', mode
 
   // Try standards-aware server endpoint first
   try {
-    const r = await fetch('http://localhost:3000/generate-test', {
+    const r = await fetch('https://pluto-server-production.up.railway.app/generate-test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ course: exam.slug, system: exam.system, mode, n: modeN }),
@@ -316,7 +317,7 @@ async function showModePicker(exam) {
   // Fetch exam config from server
   let cfg = null;
   try {
-    const r = await fetch('http://localhost:3000/exam-config?course=' + (exam.slug || ''));
+    const r = await fetch('https://pluto-server-production.up.railway.app/exam-config?course=' + (exam.slug || ''));
     const data = await r.json();
     cfg = data.config;
   } catch { /* offline — show quick only */ }
@@ -441,7 +442,7 @@ const _wikiImgCache = new Map();
 async function fetchWikipediaImage(stimText) {
   if (_wikiImgCache.has(stimText)) return _wikiImgCache.get(stimText);
   try {
-    const r = await fetch(`http://localhost:3000/wiki-image?stim=${encodeURIComponent(stimText)}`);
+    const r = await fetch(`https://pluto-server-production.up.railway.app/wiki-image?stim=${encodeURIComponent(stimText)}`);
     const { url, title } = await r.json();
     if (url) {
       console.log('[Wiki] image:', title, url);
@@ -829,7 +830,7 @@ async function renderStandardsForQuestion(strip, questionText, system, course, p
     standards = preloaded;
   } else if (['ap', 'sat', 'act'].includes(system)) {
     try {
-      const r = await fetch('http://localhost:3000/retrieve-standards', {
+      const r = await fetch('https://pluto-server-production.up.railway.app/retrieve-standards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: questionText, system, course, k: 2 }),

@@ -16,7 +16,11 @@
       "Bash(dir \"C:\\\\Users\\\\Kolli\\\\OneDrive\\\\Desktop\\\\Aria-server\\\\standards\\\\indices\\\\ap-index\")",
       "Bash(powershell -Command \"\\(Get-Content 'C:\\\\Users\\\\Kolli\\\\OneDrive\\\\Desktop\\\\Aria-server\\\\standards\\\\indices\\\\ap-index\\\\index.json' | ConvertFrom-Json\\).items.Count\")",
       "Bash(node -e \"const fs=require\\('fs'\\); const idx=JSON.parse\\(fs.readFileSync\\('C:/Users/Kolli/OneDrive/Desktop/Aria-server/standards/indices/ap-index/index.json','utf8'\\)\\); const courses=[...new Set\\(idx.items.map\\(i=>i.metadata.course\\)\\)].sort\\(\\); console.log\\(courses.join\\('\\\\n'\\)\\);\")",
-      "Bash(node -e \"const p = require\\('pdf-parse'\\); console.log\\(typeof p, Object.keys\\(p||{}\\).slice\\(0,5\\)\\);\")"
+      "Bash(node -e \"const p = require\\('pdf-parse'\\); console.log\\(typeof p, Object.keys\\(p||{}\\).slice\\(0,5\\)\\);\")",
+      "Bash(git push *)",
+      "Bash(Start-Sleep -Seconds 8)",
+      "Bash(Get-Content \"C:\\\\Users\\\\Kolli\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Kolli-OneDrive-Desktop-homework-helper\\\\dfb9ab29-3061-4e48-b251-3627402bcc72\\\\tasks\\\\bnmrs0ens.output\" -ErrorAction SilentlyContinue)",
+      "Bash(git rm *)"
     ]
   }
 }

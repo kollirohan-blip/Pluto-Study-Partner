@@ -2,7 +2,7 @@ import {
   initStarCanvas, askAI, storage, toast
 } from './pluto-shared.js';
 
-const SERVER = 'http://localhost:3000';
+const SERVER = 'https://pluto-server-production.up.railway.app';
 const $      = id => document.getElementById(id);
 
 // ── State ──────────────────────────────────────────────────
@@ -19,6 +19,8 @@ let generatedCards = [];
 let generatedText  = '';
 let sourceName     = '';
 let cardCount      = 20;
+let cameraBase64   = null;
+let cameraQuestions = [];
 
 // ── Tab switching ──────────────────────────────────────────
 document.querySelectorAll('.src-tab').forEach(tab => {
@@ -626,6 +628,176 @@ $('save-as-cards-btn').addEventListener('click', async () => {
     btn.textContent = 'Turn into flashcards instead';
   }
 });
+
+// ── Camera ─────────────────────────────────────────────────
+const camDrop      = $('cam-drop');
+const camFileInput = $('cam-file-input');
+
+camDrop.addEventListener('click', () => camFileInput.click());
+camDrop.addEventListener('dragover',  e => { e.preventDefault(); camDrop.classList.add('drag-over'); });
+camDrop.addEventListener('dragleave', () => camDrop.classList.remove('drag-over'));
+camDrop.addEventListener('drop', e => {
+  e.preventDefault();
+  camDrop.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f?.type.startsWith('image/')) loadCameraImage(f);
+  else toast('Please drop an image file (PNG, JPG, WEBP)', 'error');
+});
+camFileInput.addEventListener('change', () => {
+  if (camFileInput.files[0]) loadCameraImage(camFileInput.files[0]);
+});
+
+function loadCameraImage(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    cameraBase64 = ev.target.result.split(',')[1];
+    $('cam-preview-img').src = ev.target.result;
+    $('cam-preview-wrap').classList.remove('hidden');
+    $('cam-course-row').classList.remove('hidden');
+    $('cam-generate-btn').disabled = false;
+    $('cam-progress').style.display = 'none';
+    $('cam-result').style.display   = 'none';
+    checkReady();
+  };
+  reader.readAsDataURL(file);
+}
+
+$('cam-clear-btn').addEventListener('click', resetCamera);
+
+function resetCamera() {
+  cameraBase64    = null;
+  cameraQuestions = [];
+  camFileInput.value = '';
+  $('cam-preview-img').src = '';
+  $('cam-preview-wrap').classList.add('hidden');
+  $('cam-course-row').classList.add('hidden');
+  $('cam-generate-btn').disabled = true;
+  $('cam-progress').style.display = 'none';
+  $('cam-result').style.display   = 'none';
+  checkReady();
+}
+
+$('cam-generate-btn').addEventListener('click', generateCameraQuestions);
+
+async function generateCameraQuestions() {
+  if (!cameraBase64) return;
+  const btn = $('cam-generate-btn');
+  btn.disabled = true;
+  $('cam-result').style.display = 'none';
+
+  const showCamProgress = (label, pct) => {
+    const fill = $('cam-progress-fill');
+    fill.style.background = '#38bdf8';
+    fill.style.width      = pct + '%';
+    $('cam-progress').style.display       = 'block';
+    $('cam-progress-label').style.color   = 'rgba(255,255,255,.3)';
+    $('cam-progress-label').textContent   = label;
+  };
+  const showCamError = msg => {
+    $('cam-progress').style.display       = 'block';
+    $('cam-progress-fill').style.background = '#ff5f5f';
+    $('cam-progress-fill').style.width      = '100%';
+    $('cam-progress-label').style.color     = '#ff9090';
+    $('cam-progress-label').textContent     = '⚠ ' + msg;
+  };
+
+  try {
+    showCamProgress('Checking server…', 10);
+    const alive = await pingServer();
+    if (!alive) { showCamError('Server not running — start it on port 3000 first'); return; }
+
+    showCamProgress('Reading image…', 30);
+    const stored = await storage.get('pluto_user_id');
+    const userId = stored?.pluto_user_id || 'anonymous';
+    const course = $('cam-course-select').value || null;
+
+    showCamProgress('Identifying topic & standards…', 55);
+    const data = await serverFetch('/api/vision-to-questions', {
+      image: cameraBase64,
+      course,
+      userId,
+    });
+
+    showCamProgress('Done!', 100);
+    cameraQuestions = data.questions || [];
+    renderCameraResult(data);
+    setTimeout(() => { $('cam-progress').style.display = 'none'; }, 600);
+
+  } catch (err) {
+    showCamError(err.message);
+  } finally {
+    btn.disabled = !cameraBase64;
+  }
+}
+
+function renderCameraResult(data) {
+  const topicEl = $('cam-result-topic');
+  topicEl.textContent = `TOPIC: ${data.topic || 'Unknown'}  ·  ${data.questionsCreated} QUESTIONS`;
+
+  const list = $('cam-questions-list');
+  list.innerHTML = '';
+  (data.questions || []).forEach((q, i) => {
+    const card = document.createElement('div');
+    card.className = 'cam-question-card';
+
+    const choicesHtml = (q.choices || []).map((c, ci) =>
+      `<div class="cam-q-choice${ci === q.correct ? ' correct' : ''}">${esc(c)}</div>`
+    ).join('');
+
+    const stdBadges = (q.standardsDetail?.length ? q.standardsDetail : [])
+      .map(s => `<span class="cam-std-badge" title="${esc(s.name || '')}">${esc(s.code)}</span>`)
+      .join('') ||
+      (q.standards || []).map(code => `<span class="cam-std-badge">${esc(code)}</span>`).join('');
+
+    card.innerHTML = `
+      <div class="cam-q-num">Q${i + 1}</div>
+      <div class="cam-q-text">${esc(q.q || q.question || '')}</div>
+      <div class="cam-q-choices">${choicesHtml}</div>
+      ${q.explanation ? `<div class="cam-q-explanation">💡 ${esc(q.explanation)}</div>` : ''}
+      ${stdBadges ? `<div class="cam-q-standards">${stdBadges}</div>` : ''}
+    `;
+    list.appendChild(card);
+  });
+
+  $('cam-save-btn').disabled    = false;
+  $('cam-save-btn').textContent = 'Save as Flashcards';
+  $('cam-result').style.display = 'block';
+}
+
+$('cam-save-btn').addEventListener('click', async () => {
+  if (!cameraQuestions.length) return;
+  const btn = $('cam-save-btn');
+  btn.disabled    = true;
+  btn.textContent = 'Saving…';
+  try {
+    const topicLine = $('cam-result-topic').textContent;
+    const topicName = topicLine.split('TOPIC:')[1]?.split('·')[0]?.trim() || 'Camera Questions';
+    const setName   = topicName + ' (Questions)';
+
+    const cards = cameraQuestions.map(q => ({
+      term: q.q || q.question || '',
+      def:  (q.choices || []).map((c, i) => (i === q.correct ? '✓ ' : '') + c).join('\n') +
+            (q.explanation ? '\n\nExplanation: ' + q.explanation : ''),
+    }));
+
+    const { plutoSets = [] } = await storage.get('plutoSets');
+    plutoSets.unshift({
+      id:      Date.now().toString(),
+      name:    setName,
+      cards:   cards.map(c => ({ ...c, mastery: 0, nextReview: 0 })),
+      created: Date.now(),
+    });
+    await storage.set({ plutoSets });
+    btn.textContent = 'Saved ✓';
+    toast(`Saved ${cards.length} questions as "${setName}"`, 'success');
+  } catch {
+    btn.disabled    = false;
+    btn.textContent = 'Save as Flashcards';
+    toast('Save failed', 'error');
+  }
+});
+
+$('cam-another-btn').addEventListener('click', resetCamera);
 
 // ── Boot ───────────────────────────────────────────────────
 initStarCanvas($('stars'));
