@@ -702,7 +702,7 @@ window.runMembean = async function runMembean() {
   report('⚡ Membean: scanning…', { answered, skipped });
 
   for (let i = 0; i < 150 && window._plutoRunning; i++) {
-    await sleep(800 + Math.random() * 400);
+    await sleep(100);
     const doc = _mbDoc();
 
     // Diagnostic log every 5 rounds
@@ -737,7 +737,6 @@ window.runMembean = async function runMembean() {
           clickAt(x, y);
           answered++;
           report(`✓ Q${answered} (vision): "${instruction.label || 'Image-based'}"`, { answered, skipped });
-          await sleep(1000 + Math.random() * 500);
           acted = true;
           stuck = 0;
         }
@@ -747,21 +746,16 @@ window.runMembean = async function runMembean() {
         const labels = choices.map(c => c.textContent?.trim() || '');
         const best = await aiMCQ(q, labels);
         console.log(`[Pluto] Question: "${q}", Choices: [${labels.join(', ')}], Best: ${best} (${labels[best]})`);
-        await jitter();
         const choice = choices[best];
         if (choice) {
-          // Try multiple click methods to ensure it registers
+          // Click immediately
           choice.click();
-          await sleep(50);
           choice.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-          await sleep(50);
           choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
-          await sleep(50);
           choice.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
         }
         answered++;
         report(`✓ Q${answered}: "${labels[best]?.slice(0, 30)}"`, { answered, skipped });
-        await sleep(1000 + Math.random() * 500);
         acted = true;
         stuck = 0;
       }
@@ -775,7 +769,6 @@ window.runMembean = async function runMembean() {
       if (spellFilled) {
         answered++;
         report(`✓ Spelling placeholder filled`, { answered, skipped });
-        await sleep(1000 + Math.random() * 500);
         acted = true;
         stuck = 0;
       }
@@ -790,7 +783,6 @@ window.runMembean = async function runMembean() {
           await typeInto(inp, ans);
           answered++;
           report(`✓ Text Q${answered}: "${ans.slice(0, 25)}"`, { answered, skipped });
-          await sleep(1000 + Math.random() * 500);
           acted = true;
           stuck = 0;
         }
@@ -801,17 +793,12 @@ window.runMembean = async function runMembean() {
     if (!acted) {
       const nav = _mbBtn(doc, ['got it', 'i know', 'next', 'continue', 'ok', 'submit', 'done', 'finish']);
       if (nav) {
-        await jitter();
-        // Try multiple click methods to ensure it registers
+        // Click immediately without delays
         nav.click();
-        await sleep(50);
         nav.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-        await sleep(50);
         nav.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
-        await sleep(50);
         nav.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
         report(`→ "${nav.textContent?.trim().slice(0, 22)}"`, { answered, skipped });
-        await sleep(1000 + Math.random() * 500);
         acted = true;
         stuck = 0;
       } else {
@@ -828,11 +815,11 @@ window.runMembean = async function runMembean() {
         break;
       }
     } else {
-      // Wait for page change
+      // Minimal wait for page change
       const oldFp = fingerprint();
-      await sleep(500);
-      for (let w = 0; w < 10; w++) {
-        await sleep(300);
+      await sleep(50);
+      for (let w = 0; w < 3; w++) {
+        await sleep(50);
         if (fpChanged(oldFp, fingerprint())) break;
       }
     }
