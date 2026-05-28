@@ -748,7 +748,17 @@ window.runMembean = async function runMembean() {
         const best = await aiMCQ(q, labels);
         console.log(`[Pluto] Question: "${q}", Choices: [${labels.join(', ')}], Best: ${best} (${labels[best]})`);
         await jitter();
-        choices[best]?.click();
+        const choice = choices[best];
+        if (choice) {
+          // Try multiple click methods to ensure it registers
+          choice.click();
+          await sleep(50);
+          choice.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+          await sleep(50);
+          choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
+          await sleep(50);
+          choice.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
+        }
         answered++;
         report(`✓ Q${answered}: "${labels[best]?.slice(0, 30)}"`, { answered, skipped });
         await sleep(1000 + Math.random() * 500);
@@ -792,7 +802,14 @@ window.runMembean = async function runMembean() {
       const nav = _mbBtn(doc, ['got it', 'i know', 'next', 'continue', 'ok', 'submit', 'done', 'finish']);
       if (nav) {
         await jitter();
+        // Try multiple click methods to ensure it registers
         nav.click();
+        await sleep(50);
+        nav.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        await sleep(50);
+        nav.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
+        await sleep(50);
+        nav.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
         report(`→ "${nav.textContent?.trim().slice(0, 22)}"`, { answered, skipped });
         await sleep(1000 + Math.random() * 500);
         acted = true;
