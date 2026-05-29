@@ -737,7 +737,7 @@ window.runMembean = async function runMembean() {
           clickAt(x, y);
           answered++;
           report(`✓ Q${answered} (vision): "${instruction.label || 'Image-based'}"`, { answered, skipped });
-          await sleep(1000 + Math.random() * 500);
+          await sleep(200);
           acted = true;
           stuck = 0;
         }
@@ -761,7 +761,7 @@ window.runMembean = async function runMembean() {
         }
         answered++;
         report(`✓ Q${answered}: "${labels[best]?.slice(0, 30)}"`, { answered, skipped });
-        await sleep(1000 + Math.random() * 500);
+        await sleep(200);
         acted = true;
         stuck = 0;
       }
@@ -775,7 +775,7 @@ window.runMembean = async function runMembean() {
       if (spellFilled) {
         answered++;
         report(`✓ Spelling placeholder filled`, { answered, skipped });
-        await sleep(1000 + Math.random() * 500);
+        await sleep(200);
         acted = true;
         stuck = 0;
       }
@@ -790,7 +790,7 @@ window.runMembean = async function runMembean() {
           await typeInto(inp, ans);
           answered++;
           report(`✓ Text Q${answered}: "${ans.slice(0, 25)}"`, { answered, skipped });
-          await sleep(1000 + Math.random() * 500);
+          await sleep(200);
           acted = true;
           stuck = 0;
         }
@@ -811,7 +811,7 @@ window.runMembean = async function runMembean() {
         await sleep(50);
         nav.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
         report(`→ "${nav.textContent?.trim().slice(0, 22)}"`, { answered, skipped });
-        await sleep(1000 + Math.random() * 500);
+        await sleep(200);
         acted = true;
         stuck = 0;
       } else {
