@@ -356,6 +356,17 @@ function renderEssayWriterPanel(body) {
   genBtn.addEventListener('click', startGenerateEssay);
   body.appendChild(genBtn);
 
+  // Link Sources button — only shown when sources are loaded
+  if (STATE.sourcesData.length > 0 && getEditorText().trim().length > 100) {
+    const linkBtn = document.createElement('button');
+    linkBtn.className = 'generate-btn secondary';
+    linkBtn.id = 'link-sources-btn';
+    linkBtn.style.marginTop = '6px';
+    linkBtn.textContent = `🔗 Link Sources to Claims (${STATE.sourcesData.length} sources)`;
+    linkBtn.addEventListener('click', () => runSourceLinker(linkBtn));
+    body.appendChild(linkBtn);
+  }
+
   const divider = document.createElement('div');
   divider.className = 'panel-divider';
   divider.style.margin = '14px 0 10px';
@@ -857,11 +868,43 @@ async function runSourceSearch(body, topic) {
   }
 }
 
+let CLAIM_LINKS = [];
+
 function renderSourceCards(container) {
   container.innerHTML = '';
   if (!STATE.sourcesData.length) {
     container.innerHTML = `<div class="empty-state"><span class="es-icon">🔬</span>Search a topic above to find real, verified academic sources using Perplexity AI web search.</div>`;
     return;
+  }
+
+  // Claim matches section (if links exist)
+  if (CLAIM_LINKS.length > 0) {
+    const claimSect = document.createElement('div');
+    claimSect.style.cssText = 'background:rgba(45,212,191,.05);border:1px solid rgba(45,212,191,.15);border-radius:9px;padding:10px 12px;margin-bottom:12px';
+    claimSect.innerHTML = `<div style="font-size:8.5px;font-family:'DM Mono',monospace;color:#2dd4bf;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px">${CLAIM_LINKS.length} claims linked</div>`;
+    CLAIM_LINKS.forEach(link => {
+      const src = STATE.sourcesData[link.sourceIndex];
+      if (!src) return;
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:flex-start;gap:7px;margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid rgba(45,212,191,.1)';
+      row.innerHTML = `
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--text);line-height:1.4;margin-bottom:2px">"${link.claim.slice(0, 60)}${link.claim.length > 60 ? '…' : ''}"</div>
+          <div style="font-size:9px;color:#2dd4bf;font-family:'DM Mono',monospace">${link.inText} · ${src.author?.split(',')[0] || ''}</div>
+        </div>
+        <button class="sc-btn claim-insert-btn" data-intext="${link.inText}" style="white-space:nowrap;flex-shrink:0;color:#2dd4bf;border-color:rgba(45,212,191,.25)">Insert</button>`;
+      claimSect.appendChild(row);
+    });
+    const insertAllBtn = document.createElement('button');
+    insertAllBtn.style.cssText = 'width:100%;background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.25);border-radius:6px;color:#2dd4bf;font-size:10px;font-weight:700;padding:6px;cursor:pointer;font-family:\'DM Sans\',sans-serif;margin-top:4px';
+    insertAllBtn.textContent = '↓ Insert All Citations';
+    insertAllBtn.addEventListener('click', insertAllCitations);
+    claimSect.appendChild(insertAllBtn);
+    container.appendChild(claimSect);
+
+    container.querySelectorAll('.claim-insert-btn').forEach(btn => {
+      btn.addEventListener('click', () => insertAtCursor(' ' + btn.dataset.intext));
+    });
   }
   STATE.sourcesData.forEach((s, i) => {
     const card = document.createElement('div');
@@ -1619,6 +1662,165 @@ function showTooltip(mark, x, y) {
 function hideTooltip() {
   tooltip.style.display = 'none';
   _activeTooltipMark = null;
+}
+
+// ── CLAIM → SOURCE LINKER ─────────────────────────────────────
+
+async function runSourceLinker(btn) {
+  const essay = getEditorText().trim();
+  if (essay.length < 100) { alert('Write more of your essay first.'); return; }
+  if (!STATE.sourcesData.length) { alert('Find sources first — go to the Sources tab.'); return; }
+
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Linking…'; }
+
+  try {
+    const data = await apiPost('/essay/link-sources', {
+      essay,
+      sources: STATE.sourcesData,
+      format: STATE.citeFmt
+    });
+
+    CLAIM_LINKS = data.links || [];
+    highlightClaims(CLAIM_LINKS, STATE.sourcesData);
+
+    if (btn) { btn.textContent = `🔗 ${CLAIM_LINKS.length} claims linked`; }
+    addReward(15, 30, `${CLAIM_LINKS.length} claims linked!`);
+
+    // Refresh sources panel to show matches
+    if (STATE.activeTab === 'sources') renderRightPanel();
+    else {
+      // Show a quick summary in the write panel
+      const body = document.getElementById('right-body');
+      const msg = document.createElement('div');
+      msg.className = 'ai-msg';
+      msg.style.cssText += ';border-color:rgba(45,212,191,.25);background:rgba(45,212,191,.05)';
+      msg.innerHTML = `<span style="color:#2dd4bf;font-weight:600">🔗 ${CLAIM_LINKS.length} claims linked</span> — teal underlines show where citations are needed. Click any underline to insert.`;
+      body.appendChild(msg);
+      body.scrollTop = body.scrollHeight;
+    }
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+    const body = document.getElementById('right-body');
+    showError(body, err.message);
+  }
+}
+
+function highlightClaims(links, sources) {
+  // Remove existing claim marks
+  editor.querySelectorAll('mark.claim-mark').forEach(m => {
+    m.replaceWith(document.createTextNode(m.textContent));
+  });
+  editor.normalize();
+
+  links.forEach(link => {
+    if (!link.claim || link.claim.trim().length < 5) return;
+    const src = sources[link.sourceIndex];
+    walkAndHighlightClaim(editor, link.claim.trim(), link.sourceIndex, link.inText, src);
+  });
+}
+
+function walkAndHighlightClaim(node, phrase, sourceIndex, inText, source) {
+  if (node.nodeType === 3) {
+    const text = node.textContent;
+    const idx = text.toLowerCase().indexOf(phrase.toLowerCase());
+    if (idx === -1) return;
+    if (node.parentNode?.tagName === 'MARK') return;
+
+    const before = document.createTextNode(text.slice(0, idx));
+    const mark = document.createElement('mark');
+    mark.className = 'claim-mark';
+    mark.dataset.sourceIndex = sourceIndex;
+    mark.dataset.inText = inText;
+    mark.dataset.title   = source?.title  || '';
+    mark.dataset.author  = source?.author || '';
+    mark.dataset.year    = source?.year   || '';
+    mark.dataset.summary = (source?.summary || '').slice(0, 120);
+    mark.textContent = text.slice(idx, idx + phrase.length);
+    const after = document.createTextNode(text.slice(idx + phrase.length));
+
+    const parent = node.parentNode;
+    parent.insertBefore(before, node);
+    parent.insertBefore(mark, node);
+    parent.insertBefore(after, node);
+    parent.removeChild(node);
+    // Don't recurse — one highlight per claim
+  } else if (node.nodeType === 1 && node.tagName !== 'MARK') {
+    [...node.childNodes].forEach(child =>
+      walkAndHighlightClaim(child, phrase, sourceIndex, inText, source)
+    );
+  }
+}
+
+function insertAllCitations() {
+  const marks = [...editor.querySelectorAll('mark.claim-mark')];
+  marks.forEach(mark => {
+    const inText = mark.dataset.inText;
+    if (!inText) return;
+    const cite = document.createTextNode(' ' + inText);
+    mark.replaceWith(document.createTextNode(mark.textContent), cite);
+  });
+  CLAIM_LINKS = [];
+  addReward(20, 40, 'All citations inserted!');
+  renderRightPanel();
+}
+
+// Claim tooltip
+const claimTooltip = document.getElementById('claim-tooltip');
+let _activeClaimMark = null;
+
+editor.addEventListener('click', e => {
+  const claimMark = e.target.closest('mark.claim-mark');
+  if (!claimMark) { hideClaimTooltip(); return; }
+  if (_activeClaimMark === claimMark) { hideClaimTooltip(); return; }
+  showClaimTooltip(claimMark, e.clientX, e.clientY);
+});
+
+document.addEventListener('click', e => {
+  if (claimTooltip && !claimTooltip.contains(e.target) && !e.target.closest('mark.claim-mark')) {
+    hideClaimTooltip();
+  }
+});
+
+function showClaimTooltip(mark, x, y) {
+  _activeClaimMark = mark;
+  const inText  = mark.dataset.inText  || '';
+  const title   = mark.dataset.title   || 'Source';
+  const author  = mark.dataset.author  || '';
+  const year    = mark.dataset.year    || '';
+  const summary = mark.dataset.summary || '';
+
+  document.getElementById('ct-source-title').textContent = title;
+  document.getElementById('ct-source-meta').textContent  = `${author} · ${year}`;
+  document.getElementById('ct-explanation').textContent  = summary;
+
+  const insertBtn = document.getElementById('ct-insert');
+  insertBtn.textContent = `Insert ${inText}`;
+  insertBtn.onclick = (e) => {
+    e.stopPropagation();
+    const cite = document.createTextNode(' ' + inText);
+    const text = document.createTextNode(mark.textContent);
+    mark.replaceWith(text, cite);
+    // Remove from CLAIM_LINKS
+    const idx = parseInt(mark.dataset.sourceIndex);
+    CLAIM_LINKS = CLAIM_LINKS.filter(l => l.inText !== inText || l.sourceIndex !== idx);
+    hideClaimTooltip();
+    addReward(5, 10, 'Citation inserted!');
+    if (STATE.activeTab === 'sources') renderRightPanel();
+  };
+
+  document.getElementById('ct-dismiss').onclick = hideClaimTooltip;
+
+  claimTooltip.style.display = 'block';
+  const tw = claimTooltip.offsetWidth, th = claimTooltip.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  claimTooltip.style.left = Math.min(x + 8, vw - tw - 12) + 'px';
+  claimTooltip.style.top  = Math.min(y + 8, vh - th - 12) + 'px';
+}
+
+function hideClaimTooltip() {
+  if (claimTooltip) claimTooltip.style.display = 'none';
+  _activeClaimMark = null;
 }
 
 // ── AUTH CHIP CLICK ───────────────────────────────────────────
