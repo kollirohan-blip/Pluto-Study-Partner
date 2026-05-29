@@ -231,6 +231,35 @@ mark.claim-mark:hover{background:rgba(45,212,191,.2)}
 .auth-fix-btn:hover{background:var(--s3);color:#fff}
 .auth-fix-btn:disabled{opacity:.4;cursor:not-allowed}
 
+/* ── PARAGRAPH SCORING ── */
+#editor p.para-weak  {border-left:3px solid rgba(255,95,95,.55);padding-left:13px;margin-left:-16px;transition:border-color .3s,background .2s}
+#editor p.para-ok    {border-left:3px solid rgba(240,192,96,.55);padding-left:13px;margin-left:-16px;transition:border-color .3s,background .2s}
+#editor p.para-strong{border-left:3px solid rgba(94,248,160,.55);padding-left:13px;margin-left:-16px;transition:border-color .3s,background .2s}
+#editor p.para-selected{background:rgba(79,142,247,.05);border-radius:0 4px 4px 0}
+/* Para score strip */
+#para-strip{padding:7px 72px;font-size:10px;font-family:'DM Mono',monospace;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--b1);background:rgba(0,0,0,.3);flex-shrink:0;display:none}
+.ps-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px}
+/* Para feedback panel */
+.para-feedback-panel{background:var(--s1);border:1px solid var(--b1);border-radius:9px;padding:11px 13px;margin-bottom:10px}
+.pf-score-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.pf-score{font-size:28px;font-weight:700;font-family:'DM Mono',monospace;line-height:1}
+.pf-bar-bg{flex:1;height:4px;background:var(--b1);border-radius:2px;overflow:hidden}
+.pf-bar-fg{height:100%;border-radius:2px;transition:width .4s}
+.pf-issues{margin-bottom:8px}
+.pf-issue{font-size:10.5px;color:var(--mid);padding:2px 0;display:flex;gap:6px;line-height:1.4}
+.pf-issue::before{content:'•';color:var(--red);flex-shrink:0}
+.pf-strength{font-size:10.5px;color:var(--green);padding:4px 0;display:flex;gap:6px;line-height:1.4;margin-bottom:6px}
+.pf-strength::before{content:'✓';flex-shrink:0}
+.pf-suggestion{font-size:11px;color:var(--mid);background:rgba(79,142,247,.05);border:1px solid rgba(79,142,247,.12);border-radius:7px;padding:7px 9px;line-height:1.55;margin-bottom:10px}
+.pf-actions{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.pf-action{background:var(--s1);border:1px solid var(--b1);border-radius:7px;color:var(--mid);font-size:10px;font-weight:600;padding:7px 5px;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;text-align:center}
+.pf-action:hover{background:var(--s2);color:#fff;border-color:var(--b2)}
+.pf-action:disabled{opacity:.4;cursor:not-allowed}
+/* Upload area */
+.upload-area{border:1px dashed var(--b2);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:10px}
+.upload-area:hover{border-color:var(--blue);background:rgba(79,142,247,.04)}
+.upload-area input{display:none}
+
 /* Section divider */
 .panel-divider{height:1px;background:var(--b1);margin:10px 0}
 .panel-heading{font-size:9px;font-family:'DM Mono',monospace;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px}
@@ -259,6 +288,7 @@ mark.claim-mark:hover{background:rgba(45,212,191,.2)}
     <button class="nav-btn active" data-view="write"><span class="nb-icon">✍️</span><span class="nb-label">Essay Writer</span></button>
     <button class="nav-btn" data-view="college"><span class="nb-icon">🎓</span><span class="nb-label">College App</span><span class="nav-badge new">NEW</span></button>
     <button class="nav-btn" data-view="research-paper"><span class="nb-icon">📚</span><span class="nb-label">Research Paper</span></button>
+    <button class="nav-btn" data-view="improve"><span class="nb-icon">📤</span><span class="nb-label">Improve Essay</span><span class="nav-badge new">NEW</span></button>
 
     <div class="nav-section">TOOLS</div>
     <button class="nav-btn" data-view="sources"><span class="nb-icon">🔬</span><span class="nb-label">Find Sources</span><span class="nav-badge">AI</span></button>
@@ -313,6 +343,7 @@ mark.claim-mark:hover{background:rgba(45,212,191,.2)}
       <button class="tb-btn" id="tb-download">⬇️ Export</button>
     </div>
 
+    <div id="para-strip"></div>
     <div id="editor-wrap">
       <div id="editor" contenteditable="true"
         data-placeholder="Start writing here, or use the panel on the right to generate an essay, find real sources, build a thesis, and more.

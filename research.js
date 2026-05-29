@@ -229,6 +229,8 @@ function handleViewChange(view) {
   else if (view === 'analyze') switchTab('analysis');
   else if (view === 'cite')    switchTab('citations');
   else switchTab('ai');
+  // Hide para strip when leaving improve view
+  if (view !== 'improve') clearParaScores();
   renderRightPanel();
   updateWordCount();
 }
@@ -257,6 +259,7 @@ function renderWritePanel(body) {
   const v = STATE.activeView;
   if (v === 'college')        renderCollegePanel(body);
   else if (v === 'research-paper') renderResearchPaperPanel(body);
+  else if (v === 'improve')       renderImprovePanel(body);
   else if (v === 'thesis')    renderThesisPanel(body);
   else if (v === 'humanize')  renderHumanizePanel(body);
   else if (v === 'outline')   renderOutlinePanel(body);
@@ -1309,6 +1312,286 @@ document.addEventListener('keydown', e => {
     runHumanize(document.getElementById('right-body'), document.querySelector('.generate-btn'));
   }
 });
+
+// ── IMPROVE ESSAY ─────────────────────────────────────────────
+
+let PARA_SCORES = [];   // { index, score, issues, suggestion, strength }
+let selectedParaEl = null;
+
+function renderImprovePanel(body) {
+  body.innerHTML = '';
+
+  const heading = document.createElement('div');
+  heading.className = 'panel-heading';
+  heading.textContent = 'IMPROVE EXISTING ESSAY';
+  body.appendChild(heading);
+
+  const info = document.createElement('div');
+  info.className = 'ai-msg';
+  info.textContent = 'Paste your essay or upload a .txt file. Each paragraph gets color-coded: green = strong, yellow = needs work, red = weak. Click any paragraph for feedback and rewrite options.';
+  body.appendChild(info);
+
+  // Paste area
+  const pasteSect = document.createElement('div');
+  pasteSect.className = 'cfg-section';
+  pasteSect.innerHTML = '<div class="cfg-label">Paste Essay</div>';
+  const ta = document.createElement('textarea');
+  ta.className = 'cfg-input';
+  ta.id = 'improve-paste';
+  ta.rows = 6;
+  ta.placeholder = 'Paste your essay here...';
+  pasteSect.appendChild(ta);
+  body.appendChild(pasteSect);
+
+  // File upload
+  const uploadArea = document.createElement('label');
+  uploadArea.className = 'upload-area';
+  uploadArea.innerHTML = `<span style="font-size:18px">📄</span><br><span style="font-size:11px;color:var(--mid)">Or drop a .txt file here</span><br><span style="font-size:9px;color:var(--dim);font-family:'DM Mono',monospace">click to browse</span><input type="file" accept=".txt" id="improve-file"/>`;
+  uploadArea.querySelector('input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      document.getElementById('improve-paste').value = ev.target.result;
+    };
+    reader.readAsText(file);
+  });
+  body.appendChild(uploadArea);
+
+  const analyzeBtn = document.createElement('button');
+  analyzeBtn.className = 'generate-btn';
+  analyzeBtn.textContent = '📊 Load & Analyze Paragraphs';
+  analyzeBtn.addEventListener('click', () => {
+    const text = document.getElementById('improve-paste')?.value.trim();
+    if (!text || text.length < 50) { showError(body, 'Paste your essay first.'); return; }
+    loadAndScoreEssay(text, analyzeBtn, body);
+  });
+  body.appendChild(analyzeBtn);
+
+  // If already scored, re-show feedback
+  if (PARA_SCORES.length > 0 && selectedParaEl) {
+    showParaFeedbackPanel(body, selectedParaEl);
+  }
+}
+
+async function loadAndScoreEssay(text, btn, body) {
+  btn.disabled = true;
+  btn.textContent = 'Analyzing…';
+
+  // Split into paragraphs, filter short ones
+  const rawParas = text.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 40);
+  if (!rawParas.length) { showError(body, 'No paragraphs detected — check formatting.'); btn.disabled = false; btn.textContent = '📊 Load & Analyze Paragraphs'; return; }
+
+  // Load into editor
+  editor.innerHTML = rawParas.map((p, i) =>
+    `<p data-para-idx="${i}" class="para-ok">${p.replace(/\n/g, '<br>')}</p>`
+  ).join('');
+  if (!document.getElementById('doc-title').value) {
+    document.getElementById('doc-title').value = 'Uploaded Essay';
+  }
+  updateWordCount();
+  scheduleHighlightUpdate();
+
+  const loadEl = document.createElement('div');
+  loadEl.className = 'loading-row';
+  loadEl.innerHTML = '<div class="spinner"></div><span class="dots">Scoring paragraphs</span>';
+  body.appendChild(loadEl);
+
+  try {
+    const data = await apiPost('/essay/score-paragraphs', { paragraphs: rawParas });
+    loadEl.remove();
+    PARA_SCORES = data.scores || [];
+    applyParaScores(PARA_SCORES);
+    updateParaStrip(PARA_SCORES);
+    addReward(20, 40, 'Essay analyzed!');
+
+    const summary = document.createElement('div');
+    summary.className = 'ai-msg';
+    const strong = PARA_SCORES.filter(s => s.score >= 80).length;
+    const ok     = PARA_SCORES.filter(s => s.score >= 60 && s.score < 80).length;
+    const weak   = PARA_SCORES.filter(s => s.score < 60).length;
+    summary.innerHTML = `<b style="color:#fff">${rawParas.length} paragraphs scored.</b> Click any paragraph in the editor to see issues and rewrite options.<br><span style="color:var(--green)">▮ ${strong} strong</span> &nbsp;<span style="color:var(--gold)">▮ ${ok} good</span> &nbsp;<span style="color:var(--red)">▮ ${weak} weak</span>`;
+    body.appendChild(summary);
+  } catch (err) {
+    loadEl.remove();
+    showError(body, err.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔄 Re-analyze';
+}
+
+function applyParaScores(scores) {
+  scores.forEach(s => {
+    const el = editor.querySelector(`p[data-para-idx="${s.index}"]`);
+    if (!el) return;
+    el.dataset.paraScore = s.score;
+    el.dataset.paraIssues = JSON.stringify(s.issues || []);
+    el.dataset.paraSuggestion = s.suggestion || '';
+    el.dataset.paraStrength = s.strength || '';
+    el.classList.remove('para-weak', 'para-ok', 'para-strong');
+    el.classList.add(s.score >= 80 ? 'para-strong' : s.score >= 60 ? 'para-ok' : 'para-weak');
+  });
+}
+
+function updateParaStrip(scores) {
+  const strip = document.getElementById('para-strip');
+  if (!strip || !scores.length) return;
+  const strong = scores.filter(s => s.score >= 80).length;
+  const ok     = scores.filter(s => s.score >= 60 && s.score < 80).length;
+  const weak   = scores.filter(s => s.score < 60).length;
+  strip.innerHTML = `
+    <span style="color:var(--dim);letter-spacing:.5px">PARAGRAPH SCORES</span>
+    <span><span class="ps-dot" style="background:var(--green)"></span><span style="color:var(--green)">${strong} strong</span></span>
+    <span><span class="ps-dot" style="background:var(--gold)"></span><span style="color:var(--gold)">${ok} good</span></span>
+    <span><span class="ps-dot" style="background:var(--red)"></span><span style="color:var(--red)">${weak} weak</span></span>
+    <span style="color:var(--dim)">· click any paragraph for feedback</span>`;
+  strip.style.display = 'flex';
+}
+
+function clearParaScores() {
+  editor.querySelectorAll('p[data-para-idx]').forEach(p => {
+    p.classList.remove('para-weak', 'para-ok', 'para-strong', 'para-selected');
+    delete p.dataset.paraScore;
+    delete p.dataset.paraIssues;
+    delete p.dataset.paraSuggestion;
+    delete p.dataset.paraStrength;
+    delete p.dataset.paraIdx;
+  });
+  PARA_SCORES = [];
+  selectedParaEl = null;
+  const strip = document.getElementById('para-strip');
+  if (strip) strip.style.display = 'none';
+}
+
+// Click on scored paragraph → show feedback
+editor.addEventListener('click', e => {
+  const p = e.target.closest('p[data-para-score]');
+  if (!p) return;
+
+  // Deselect old
+  if (selectedParaEl) selectedParaEl.classList.remove('para-selected');
+  p.classList.add('para-selected');
+  selectedParaEl = p;
+
+  // Switch to improve view & render feedback
+  STATE.activeView = 'improve';
+  document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'improve'));
+  if (STATE.activeTab !== 'ai') switchTab('ai');
+  const body = document.getElementById('right-body');
+  body.innerHTML = '';
+  const heading = document.createElement('div');
+  heading.className = 'panel-heading';
+  heading.textContent = 'PARAGRAPH FEEDBACK';
+  body.appendChild(heading);
+  showParaFeedbackPanel(body, p);
+});
+
+function showParaFeedbackPanel(body, paraEl) {
+  const score      = parseInt(paraEl.dataset.paraScore) || 0;
+  const issues     = JSON.parse(paraEl.dataset.paraIssues || '[]');
+  const suggestion = paraEl.dataset.paraSuggestion || '';
+  const strength   = paraEl.dataset.paraStrength   || '';
+  const scoreColor = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--gold)' : 'var(--red)';
+
+  const panel = document.createElement('div');
+  panel.className = 'para-feedback-panel';
+  panel.innerHTML = `
+    <div class="pf-score-row">
+      <div class="pf-score" style="color:${scoreColor}">${score}</div>
+      <div style="flex:1">
+        <div class="pf-bar-bg"><div class="pf-bar-fg" style="width:${score}%;background:${scoreColor}"></div></div>
+        <div style="font-size:8.5px;color:var(--dim);font-family:'DM Mono',monospace;margin-top:3px">PARAGRAPH SCORE</div>
+      </div>
+    </div>
+    ${strength ? `<div class="pf-strength">${strength}</div>` : ''}
+    <div class="pf-issues">${issues.map(i => `<div class="pf-issue">${i}</div>`).join('')}</div>
+    ${suggestion ? `<div class="pf-suggestion">${suggestion}</div>` : ''}`;
+  body.appendChild(panel);
+
+  const actionsLabel = document.createElement('div');
+  actionsLabel.className = 'panel-heading';
+  actionsLabel.textContent = 'REWRITE OPTIONS';
+  body.appendChild(actionsLabel);
+
+  const actGrid = document.createElement('div');
+  actGrid.className = 'pf-actions';
+
+  const actions = [
+    { label: '✨ Full Rewrite',       focus: 'clarity',   desc: 'Rewrites entire paragraph' },
+    { label: '💪 Strengthen Arg',     focus: 'argument',  desc: 'Sharpen claim & logic' },
+    { label: '📖 Add Evidence',        focus: 'evidence',  desc: 'Insert supporting detail' },
+    { label: '🎯 Fix Grammar',         focus: 'grammar',   desc: 'Fix errors, keep voice' },
+    { label: '🔄 Improve Flow',        focus: 'flow',      desc: 'Better transitions' },
+    { label: '🎓 Raise Register',      focus: 'academic',  desc: 'More academic language' },
+  ];
+
+  actions.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'pf-action';
+    btn.title = a.desc;
+    btn.textContent = a.label;
+    btn.addEventListener('click', () => rewriteParagraph(paraEl, a.focus, btn, body));
+    actGrid.appendChild(btn);
+  });
+  body.appendChild(actGrid);
+}
+
+async function rewriteParagraph(paraEl, focus, btn, body) {
+  const text = paraEl.innerText.trim();
+  if (!text) return;
+
+  // Disable all action buttons
+  body.querySelectorAll('.pf-action').forEach(b => b.disabled = true);
+  btn.textContent = 'Rewriting…';
+
+  const loadEl = document.createElement('div');
+  loadEl.className = 'loading-row';
+  loadEl.innerHTML = '<div class="spinner"></div><span class="dots">Rewriting paragraph</span>';
+  body.appendChild(loadEl);
+
+  try {
+    const data = await apiPost('/essay/improve', {
+      text,
+      focus,
+      level: STATE.essayCfg.level
+    });
+    loadEl.remove();
+
+    if (data.improved) {
+      // Replace paragraph content
+      paraEl.innerHTML = data.improved.replace(/\n/g, '<br>');
+      paraEl.classList.remove('para-weak', 'para-ok', 'para-strong', 'para-selected');
+      // Optimistically upgrade to ok/strong
+      const newScore = Math.min(100, (parseInt(paraEl.dataset.paraScore) || 60) + 15);
+      paraEl.dataset.paraScore = newScore;
+      paraEl.classList.add(newScore >= 80 ? 'para-strong' : 'para-ok');
+
+      addReward(10, 20, 'Paragraph rewritten!');
+
+      // Show what changed
+      if (data.changes?.length) {
+        const changesEl = document.createElement('div');
+        changesEl.style.cssText = 'margin-top:10px';
+        changesEl.innerHTML = '<div class="panel-heading">CHANGES MADE</div>' +
+          data.changes.map(c => `<div style="font-size:10.5px;color:var(--green);padding:2px 0;display:flex;gap:6px"><span>✓</span><span>${c}</span></div>`).join('');
+        body.appendChild(changesEl);
+      }
+      if (data.tip) {
+        const tip = document.createElement('div');
+        tip.style.cssText = 'font-size:10.5px;color:var(--blue);margin-top:8px;padding:6px 9px;background:rgba(79,142,247,.06);border:1px solid rgba(79,142,247,.12);border-radius:6px';
+        tip.textContent = '💡 ' + data.tip;
+        body.appendChild(tip);
+      }
+    }
+  } catch (err) {
+    loadEl.remove();
+    showError(body, err.message);
+  }
+
+  body.querySelectorAll('.pf-action').forEach(b => { b.disabled = false; });
+  btn.textContent = btn.title ? btn.textContent.replace('Rewriting…', btn.title) : '✅ Done';
+}
 
 // ── PHRASE DETECTOR ───────────────────────────────────────────
 
