@@ -197,6 +197,38 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}
 ::selection{background:rgba(79,142,247,.3)}
 
+/* ── PHRASE DETECTOR ── */
+mark.cliche-mark{background:rgba(251,146,60,.12);border-bottom:1.5px solid rgba(251,146,60,.65);border-radius:2px;color:inherit;cursor:pointer;padding:0 1px;transition:background .15s}
+mark.ai-mark{background:rgba(167,139,250,.1);border-bottom:1.5px solid rgba(167,139,250,.65);border-radius:2px;color:inherit;cursor:pointer;padding:0 1px;transition:background .15s}
+mark.cliche-mark:hover{background:rgba(251,146,60,.22)}
+mark.ai-mark:hover{background:rgba(167,139,250,.2)}
+#phrase-tooltip{position:fixed;background:#080814;border:1px solid var(--b2);border-radius:10px;padding:10px 12px;z-index:500;max-width:230px;display:none;box-shadow:0 8px 32px rgba(0,0,0,.65);pointer-events:auto}
+.pt-type{font-size:8px;font-weight:700;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.pt-phrase{font-size:11px;color:#fff;margin-bottom:7px;font-style:italic}
+.pt-label{font-size:8px;color:var(--dim);font-family:'DM Mono',monospace;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.pt-alts{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.pt-alt{background:var(--s2);border:1px solid var(--b2);border-radius:5px;color:var(--text);font-size:10px;padding:3px 8px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}
+.pt-alt:hover{background:var(--s3);color:#fff}
+.pt-dismiss{background:transparent;border:none;color:var(--dim);font-size:9.5px;cursor:pointer;width:100%;text-align:center;margin-top:2px;font-family:'DM Sans',sans-serif}
+.pt-dismiss:hover{color:var(--mid)}
+/* Auth score chip in toolbar */
+.auth-chip{display:flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;border:1px solid var(--b1);cursor:pointer;transition:all .15s;user-select:none}
+.auth-chip:hover{background:var(--s1);border-color:var(--b2)}
+.auth-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;transition:background .3s}
+#auth-label{font-size:9px;font-family:'DM Mono',monospace;color:var(--mid);transition:color .3s}
+/* Auth panel inside right panel */
+.auth-panel{background:var(--s1);border:1px solid var(--b1);border-radius:9px;padding:10px 12px;margin-bottom:10px}
+.auth-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.auth-big{font-size:26px;font-weight:700;font-family:'DM Mono',monospace;line-height:1}
+.auth-bar-bg{flex:1;height:4px;background:var(--b1);border-radius:2px;overflow:hidden}
+.auth-bar-fg{height:100%;border-radius:2px;transition:width .4s,background .4s}
+.auth-chips{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.auth-chip-ai{font-size:8.5px;font-family:'DM Mono',monospace;padding:2px 7px;border-radius:4px;font-weight:600;background:rgba(167,139,250,.1);color:#a78bfa;border:1px solid rgba(167,139,250,.2)}
+.auth-chip-cliche{font-size:8.5px;font-family:'DM Mono',monospace;padding:2px 7px;border-radius:4px;font-weight:600;background:rgba(251,146,60,.1);color:#fb923c;border:1px solid rgba(251,146,60,.2)}
+.auth-fix-btn{width:100%;background:var(--s2);border:1px solid var(--b2);border-radius:7px;color:var(--mid);font-size:10.5px;font-weight:600;padding:7px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}
+.auth-fix-btn:hover{background:var(--s3);color:#fff}
+.auth-fix-btn:disabled{opacity:.4;cursor:not-allowed}
+
 /* Section divider */
 .panel-divider{height:1px;background:var(--b1);margin:10px 0}
 .panel-heading{font-size:9px;font-family:'DM Mono',monospace;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px}
@@ -270,6 +302,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
         <span id="word-count">0 words</span>
         <button id="wc-target-btn">/ 800</button>
       </div>
+      <div class="auth-chip" id="auth-chip" title="Authenticity Score — click for details">
+        <div class="auth-dot" id="auth-dot" style="background:var(--green)"></div>
+        <span id="auth-label">100%</span>
+      </div>
       <button class="tb-btn" id="tb-save">💾 Save</button>
       <button class="tb-btn" id="tb-copy">📋 Copy</button>
       <button class="tb-btn" id="tb-download">⬇️ Export</button>
@@ -317,6 +353,15 @@ Select any text and press Ctrl+K to improve it instantly."></div>
 <div id="reward-popup">
   <div class="rp-icon" id="rp-icon">🪙</div>
   <div class="rp-text"><div class="rp-title" id="rp-title">+10 coins</div><div class="rp-sub" id="rp-sub">Keep writing!</div></div>
+</div>
+
+<!-- Phrase tooltip -->
+<div id="phrase-tooltip">
+  <div class="pt-type" id="pt-type">AI Phrase</div>
+  <div class="pt-phrase" id="pt-phrase">it is worth noting</div>
+  <div class="pt-label">Try instead:</div>
+  <div class="pt-alts" id="pt-alts"></div>
+  <button class="pt-dismiss" id="pt-dismiss">✕ dismiss</button>
 </div>
 
 <script src="research.js"></script>

@@ -157,7 +157,7 @@ function updateWordCount() {
     cc.style.display = 'none';
   }
 }
-editor.addEventListener('input', updateWordCount);
+editor.addEventListener('input', () => { updateWordCount(); scheduleHighlightUpdate(); });
 
 document.getElementById('wc-target-btn').addEventListener('click', () => {
   showModal('Set Word Count Target', 'Enter your target word count for this essay.', () => {
@@ -284,6 +284,11 @@ function cfgPills(label, options, stateKey, cfgObj, callback) {
 
 function renderEssayWriterPanel(body) {
   body.innerHTML = '';
+
+  // Live authenticity panel (only when text exists)
+  if (getEditorText().trim().length > 30) {
+    body.appendChild(buildAuthPanel());
+  }
 
   const actions = [
     { label: '✍️ Write essay',     action: 'generate' },
@@ -1261,6 +1266,405 @@ document.addEventListener('keydown', e => {
     runHumanize(document.getElementById('right-body'), document.querySelector('.generate-btn'));
   }
 });
+
+// ── PHRASE DETECTOR ───────────────────────────────────────────
+
+const CLICHES = [
+  "ever since i was young","ever since i was a child","ever since i was little",
+  "in today's society","in today's world","in the world today","in modern society",
+  "since the dawn of time","throughout history","since ancient times",
+  "in this day and age","at the end of the day","when all is said and done",
+  "needless to say","it goes without saying","as we all know","as everyone knows",
+  "it is clear that","it is obvious that","without a doubt","beyond a shadow of a doubt",
+  "the fact of the matter is","at this point in time","for all intents and purposes",
+  "in the final analysis","a perfect storm","think outside the box","paradigm shift",
+  "game changer","game-changer","at the forefront","in light of this",
+  "with that being said","having said that","that being said",
+  "in conclusion","to conclude","in summary","to summarize","in closing",
+  "last but not least","first and foremost","all in all","on the other hand",
+  "it is what it is","at the end of the day","moving forward","going forward",
+  "level the playing field","hit the ground running","make a difference",
+  "change the world","leave their mark","make an impact","stands the test of time",
+  "in today's fast-paced world","rapidly changing world","ever-changing landscape"
+];
+
+const AI_PHRASES = [
+  "it is worth noting","it is worth mentioning","it is important to note",
+  "it is crucial to note","it is essential to note","it should be noted that",
+  "delving into","delve into","dive into","diving into",
+  "it is imperative","it is paramount","it is of utmost importance",
+  "one must consider","one cannot help but","one might argue that",
+  "it cannot be denied","it is undeniable","it is undoubtedly",
+  "furthermore, it can be seen","it can be seen that","it can be argued",
+  "it is fascinating to","it is interesting to note","it is intriguing that",
+  "in the realm of","in the world of","in the field of","across various domains",
+  "shed light on","shedding light on","sheds light on","shed new light",
+  "tapestry of","a myriad of","myriad of","multitude of",
+  "fostering a","foster a","fosters a","foster an environment",
+  "leveraging","leverage","leverages","harnessing the power",
+  "utilize","utilizing","utilizes","utilization of",
+  "in today's fast-paced","rapidly evolving","ever-changing","constantly evolving",
+  "multifaceted","nuanced approach","nuanced understanding",
+  "underscore","underscores","underscoring the","underscored by",
+  "pivotal role","pivotal moment","plays a pivotal",
+  "holistic approach","holistic understanding","holistic view",
+  "encompass","encompassing","encompasses a wide",
+  "robust framework","robust approach","robust solution",
+  "comprehensive understanding","comprehensive overview","comprehensive analysis",
+  "facilitate","facilitates","facilitating the",
+  "as previously mentioned","as stated above","as mentioned earlier","as noted above",
+  "in conclusion, it is","in conclusion, this","in conclusion, we",
+  "as an ai","i'm an ai","as a language model",
+  "embark on","embarking on","embarks on","embark upon",
+  "intricate","intricacies of","intricate web","intricate tapestry",
+  "stands as a testament","testament to the","a testament to",
+  "in essence","in effect","in reality, this","in practice, this",
+  "it begs the question","begs the question",
+  "proactive approach","proactive measures","proactively address",
+  "synergy","synergistic","synergies between",
+  "cutting-edge","state-of-the-art","innovative approach",
+  "unprecedented","unparalleled","unmatched in its",
+];
+
+// Alternatives map: phrase → [option1, option2, option3]
+const ALTERNATIVES = {
+  "it is worth noting":       ["notably,","importantly,","consider that"],
+  "it is worth mentioning":   ["worth adding,","also,","note that"],
+  "it is important to note":  ["crucially,","notably,","keep in mind that"],
+  "it should be noted that":  ["note that","notably,","importantly,"],
+  "delve into":               ["examine","explore","look at"],
+  "delving into":             ["examining","exploring","looking at"],
+  "dive into":                ["examine","explore","unpack"],
+  "diving into":              ["examining","exploring","unpacking"],
+  "it is imperative":         ["it is critical","we must","it is necessary"],
+  "it cannot be denied":      ["clearly,","evidently,","undeniably,"],
+  "it is undeniable":         ["clearly,","evidently,","this shows that"],
+  "shed light on":            ["clarify","reveal","explain"],
+  "shedding light on":        ["clarifying","revealing","explaining"],
+  "a myriad of":              ["many","numerous","a wide range of"],
+  "myriad of":                ["many","numerous","countless"],
+  "utilize":                  ["use","apply","employ"],
+  "utilizing":                ["using","applying","employing"],
+  "leveraging":               ["using","applying","drawing on"],
+  "leverage":                 ["use","apply","draw on"],
+  "foster a":                 ["build a","create a","develop a"],
+  "fostering a":              ["building a","creating a","developing a"],
+  "multifaceted":             ["complex","layered","many-sided"],
+  "underscore":               ["highlight","emphasize","reinforce"],
+  "underscores":              ["highlights","emphasizes","reinforces"],
+  "pivotal role":             ["key role","central role","critical role"],
+  "pivotal moment":           ["turning point","key moment","critical moment"],
+  "holistic":                 ["comprehensive","overall","whole"],
+  "encompassing":             ["covering","including","spanning"],
+  "facilitate":               ["enable","allow","help"],
+  "facilitates":              ["enables","allows","helps"],
+  "robust":                   ["strong","solid","effective"],
+  "embark on":                ["begin","start","undertake"],
+  "embarking on":             ["beginning","starting","undertaking"],
+  "intricate":                ["complex","detailed","nuanced"],
+  "in today's society":       ["currently,","today,","in our time,"],
+  "in today's world":         ["today,","currently,","at present,"],
+  "at the end of the day":    ["ultimately,","in the end,","ultimately,"],
+  "needless to say":          ["obviously,","clearly,","[remove this phrase]"],
+  "it goes without saying":   ["clearly,","obviously,","[remove phrase]"],
+  "in conclusion":            ["to close,","finally,","ultimately,"],
+  "in summary":               ["briefly,","overall,","to summarize:"],
+  "paradigm shift":           ["major change","shift in thinking","new approach"],
+  "think outside the box":    ["think creatively","try new approaches","be innovative"],
+  "game changer":             ["major development","turning point","breakthrough"],
+  "unprecedented":            ["new","remarkable","historic"],
+  "cutting-edge":             ["latest","advanced","current"],
+  "synergy":                  ["cooperation","combined effect","collaboration"],
+  "in the realm of":          ["in","within","regarding"],
+  "in the world of":          ["in","within","among"],
+  "tapestry of":              ["mix of","blend of","range of"],
+  "it is fascinating to":     ["interestingly,","notably,","[remove]"],
+  "as previously mentioned":  ["as noted,","as shown,","earlier,"],
+  "as mentioned earlier":     ["as noted,","as shown,","earlier,"],
+  "testament to the":         ["evidence of","proof of","a sign of"],
+  "proactive":                ["active","preventive","anticipatory"],
+  "innovative approach":      ["new approach","fresh approach","different method"],
+};
+
+// ── CURSOR SAVE / RESTORE ─────────────────────────────────────
+function getCaretCharOffset(el) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return -1;
+  const range = sel.getRangeAt(0).cloneRange();
+  range.selectNodeContents(el);
+  range.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
+  return range.toString().length;
+}
+
+function setCaretCharOffset(el, targetOffset) {
+  if (targetOffset < 0) return;
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  let charCount = 0;
+  let done = false;
+
+  function walk(node) {
+    if (done) return;
+    if (node.nodeType === 3) {
+      const end = charCount + node.length;
+      if (targetOffset <= end) {
+        range.setStart(node, targetOffset - charCount);
+        range.collapse(true);
+        done = true;
+      }
+      charCount = end;
+    } else {
+      for (const child of node.childNodes) walk(child);
+    }
+  }
+  walk(el);
+  if (!done) {
+    range.selectNodeContents(el);
+    range.collapse(false);
+  }
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+// ── HIGHLIGHT ENGINE ──────────────────────────────────────────
+let _highlightTimer = null;
+let _isHighlighting = false;
+
+function scheduleHighlightUpdate() {
+  if (_highlightTimer) clearTimeout(_highlightTimer);
+  _highlightTimer = setTimeout(applyHighlights, 1600);
+}
+
+function removeHighlights() {
+  editor.querySelectorAll('mark.cliche-mark, mark.ai-mark').forEach(m => {
+    m.replaceWith(document.createTextNode(m.textContent));
+  });
+  editor.normalize();
+}
+
+function walkAndHighlight(node, patterns) {
+  if (node.nodeType === 3) {
+    const text = node.textContent;
+    const lower = text.toLowerCase();
+    for (const [phrase, cls] of patterns) {
+      const idx = lower.indexOf(phrase.toLowerCase());
+      if (idx === -1) continue;
+      // Don't highlight inside existing marks
+      if (node.parentNode?.tagName === 'MARK') continue;
+      const before = document.createTextNode(text.slice(0, idx));
+      const mark = document.createElement('mark');
+      mark.className = cls;
+      mark.dataset.phrase = phrase;
+      mark.textContent = text.slice(idx, idx + phrase.length);
+      const after = document.createTextNode(text.slice(idx + phrase.length));
+      const parent = node.parentNode;
+      parent.insertBefore(before, node);
+      parent.insertBefore(mark, node);
+      parent.insertBefore(after, node);
+      parent.removeChild(node);
+      // Recurse on the remaining text
+      if (after.textContent) walkAndHighlight(after, patterns);
+      return;
+    }
+  } else if (node.nodeType === 1 && node.tagName !== 'MARK') {
+    [...node.childNodes].forEach(child => walkAndHighlight(child, patterns));
+  }
+}
+
+function applyHighlights() {
+  if (_isHighlighting) return;
+  if (!getEditorText().trim()) {
+    updateAuthChip([], []);
+    return;
+  }
+  _isHighlighting = true;
+
+  const caretOffset = getCaretCharOffset(editor);
+  removeHighlights();
+
+  // Build pattern list sorted longest-first to avoid partial overlaps
+  const patterns = [
+    ...CLICHES.map(p => [p, 'cliche-mark']),
+    ...AI_PHRASES.map(p => [p, 'ai-mark']),
+  ].sort((a, b) => b[0].length - a[0].length);
+
+  walkAndHighlight(editor, patterns);
+
+  const clicheMarks = [...editor.querySelectorAll('mark.cliche-mark')];
+  const aiMarks     = [...editor.querySelectorAll('mark.ai-mark')];
+
+  updateAuthChip(clicheMarks, aiMarks);
+
+  if (caretOffset >= 0) setCaretCharOffset(editor, caretOffset);
+
+  // Refresh the right panel auth section if we're on the write tab
+  if (STATE.activeTab === 'ai' && STATE.activeView === 'write') {
+    const body = document.getElementById('right-body');
+    const existing = body.querySelector('.auth-panel');
+    const newPanel = buildAuthPanel(clicheMarks, aiMarks);
+    if (existing) existing.replaceWith(newPanel);
+    else body.prepend(newPanel);
+  }
+
+  _isHighlighting = false;
+}
+
+function updateAuthChip(clicheMarks, aiMarks) {
+  const total = clicheMarks.length + aiMarks.length;
+  const wc = getEditorText().trim().split(/\s+/).filter(Boolean).length || 1;
+  // Score: start at 100, lose 4 per AI phrase, 3 per cliché, floor at 0
+  const score = Math.max(0, 100 - aiMarks.length * 4 - clicheMarks.length * 3);
+  const dotEl  = document.getElementById('auth-dot');
+  const lblEl  = document.getElementById('auth-label');
+  if (!dotEl || !lblEl) return;
+  const color = score >= 85 ? 'var(--green)' : score >= 65 ? 'var(--gold)' : 'var(--red)';
+  dotEl.style.background = color;
+  lblEl.textContent = score + '%';
+  lblEl.style.color = score >= 85 ? 'var(--green)' : score >= 65 ? 'var(--gold)' : 'var(--red)';
+}
+
+function buildAuthPanel(clicheMarks, aiMarks) {
+  // If not passed, read from DOM
+  if (!clicheMarks) clicheMarks = [...editor.querySelectorAll('mark.cliche-mark')];
+  if (!aiMarks)     aiMarks     = [...editor.querySelectorAll('mark.ai-mark')];
+
+  const score = Math.max(0, 100 - aiMarks.length * 4 - clicheMarks.length * 3);
+  const color = score >= 85 ? 'var(--green)' : score >= 65 ? 'var(--gold)' : 'var(--red)';
+  const total = clicheMarks.length + aiMarks.length;
+
+  const panel = document.createElement('div');
+  panel.className = 'auth-panel';
+
+  panel.innerHTML = `
+    <div class="auth-row">
+      <div class="auth-big" style="color:${color}">${score}</div>
+      <div style="flex:1">
+        <div class="auth-bar-bg"><div class="auth-bar-fg" style="width:${score}%;background:${color}"></div></div>
+        <div style="font-size:9px;color:var(--dim);font-family:'DM Mono',monospace;margin-top:3px">AUTHENTICITY SCORE</div>
+      </div>
+    </div>
+    <div class="auth-chips">
+      ${aiMarks.length ? `<span class="auth-chip-ai">${aiMarks.length} AI phrase${aiMarks.length > 1 ? 's' : ''}</span>` : ''}
+      ${clicheMarks.length ? `<span class="auth-chip-cliche">${clicheMarks.length} cliché${clicheMarks.length > 1 ? 's' : ''}</span>` : ''}
+      ${!total ? `<span style="font-size:9px;color:var(--green);font-family:'DM Mono',monospace">✓ no flags</span>` : ''}
+    </div>`;
+
+  if (total > 0) {
+    const fixBtn = document.createElement('button');
+    fixBtn.className = 'auth-fix-btn';
+    fixBtn.textContent = `✨ Auto-fix all ${total} flag${total > 1 ? 's' : ''}`;
+    fixBtn.addEventListener('click', () => autoFixAll(fixBtn));
+    panel.appendChild(fixBtn);
+  }
+
+  return panel;
+}
+
+// ── TOOLTIP ───────────────────────────────────────────────────
+let _activeTooltipMark = null;
+const tooltip = document.getElementById('phrase-tooltip');
+
+editor.addEventListener('click', e => {
+  const mark = e.target.closest('mark.cliche-mark, mark.ai-mark');
+  if (!mark) { hideTooltip(); return; }
+  if (_activeTooltipMark === mark) { hideTooltip(); return; }
+  showTooltip(mark, e.clientX, e.clientY);
+});
+
+document.addEventListener('click', e => {
+  if (!tooltip.contains(e.target) && !e.target.closest('mark')) hideTooltip();
+});
+
+function showTooltip(mark, x, y) {
+  _activeTooltipMark = mark;
+  const isCliche = mark.classList.contains('cliche-mark');
+  const phrase = mark.dataset.phrase;
+
+  document.getElementById('pt-type').textContent = isCliche ? 'Cliché' : 'AI Phrase';
+  document.getElementById('pt-type').style.color = isCliche ? '#fb923c' : '#a78bfa';
+  document.getElementById('pt-phrase').textContent = '"' + phrase + '"';
+
+  const altsEl = document.getElementById('pt-alts');
+  altsEl.innerHTML = '';
+  const alts = ALTERNATIVES[phrase.toLowerCase()] || ['[revise]'];
+  alts.forEach(alt => {
+    const btn = document.createElement('button');
+    btn.className = 'pt-alt';
+    btn.textContent = alt;
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (alt === '[remove]' || alt === '[remove this phrase]' || alt === '[revise]') {
+        mark.replaceWith(document.createTextNode(''));
+      } else {
+        mark.replaceWith(document.createTextNode(alt));
+      }
+      hideTooltip();
+      scheduleHighlightUpdate();
+      addReward(2, 5, 'Phrase replaced!');
+    });
+    altsEl.appendChild(btn);
+  });
+
+  document.getElementById('pt-dismiss').onclick = hideTooltip;
+
+  // Position tooltip near click, keep on screen
+  tooltip.style.display = 'block';
+  const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  tooltip.style.left = Math.min(x + 8, vw - tw - 12) + 'px';
+  tooltip.style.top  = Math.min(y + 8, vh - th - 12) + 'px';
+}
+
+function hideTooltip() {
+  tooltip.style.display = 'none';
+  _activeTooltipMark = null;
+}
+
+// ── AUTH CHIP CLICK ───────────────────────────────────────────
+document.getElementById('auth-chip')?.addEventListener('click', () => {
+  if (STATE.activeTab !== 'ai') switchTab('ai');
+  STATE.activeView = 'write';
+  document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === 'write'));
+  renderRightPanel();
+  document.getElementById('right-body').querySelector('.auth-panel')?.scrollIntoView({ behavior: 'smooth' });
+});
+
+// ── AUTO-FIX ALL ──────────────────────────────────────────────
+async function autoFixAll(btn) {
+  const marks = [...editor.querySelectorAll('mark.cliche-mark, mark.ai-mark')];
+  if (!marks.length) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Fixing…';
+
+  const flagged = [...new Set(marks.map(m => m.dataset.phrase))];
+  const essay   = getEditorText();
+
+  try {
+    const reply = await askPluto(
+      `Rewrite only the flagged phrases in the essay below with natural, human alternatives.
+Do not change anything else — same structure, same content, same arguments.
+Flagged phrases to replace: ${JSON.stringify(flagged)}
+
+Essay:
+${essay.slice(0, 5000)}
+
+Return ONLY the rewritten essay text, no preamble or explanation.`
+    );
+    if (reply && reply.length > 50) {
+      const cleaned = cleanText(reply);
+      editor.innerHTML = '';
+      insertAtCursor('<p>' + cleaned.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>') + '</p>');
+      scheduleHighlightUpdate();
+      addReward(20, 40, 'All flags fixed!');
+    }
+  } catch (err) {
+    btn.textContent = `✨ Auto-fix all (offline)`;
+  }
+
+  btn.disabled = false;
+}
 
 // ── INIT ──────────────────────────────────────────────────────
 updateCoinDisplay();
