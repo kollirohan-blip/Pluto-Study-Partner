@@ -94,7 +94,6 @@ async function aiText(question) {
 async function typeInto(el, text) {
   if (!el) return;
   el.focus();
-  await sleep(80);
 
   // Use React's internal setter if available
   const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -109,7 +108,6 @@ async function typeInto(el, text) {
   // Fire all the events React/Angular/Vue listen to
   el.dispatchEvent(new Event('input',  { bubbles: true }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
-  await sleep(150);
 }
 
 // ── NAV HELPER ────────────────────────────────────────────────
@@ -684,25 +682,28 @@ async function _mbVisionFallback() {
 }
 
 function _mbHasImages(doc) {
-  const root = _mbAnswerContainer(doc);
-  const imgs = root.querySelectorAll('img[src]:not([src*="icon"]):not([src*="svg"])');
-  const pictureElems = root.querySelectorAll('picture');
-  const hasImageContent = imgs.length > 0 || pictureElems.length > 0;
-  
-  // Also check for image-based text indicators
-  const qText = _mbQuestion(doc).toLowerCase();
-  const isImageQuestion = /\b(image|picture|diagram|chart|graph|shown|illustrat|visual)\b/i.test(qText);
-  
-  return hasImageContent || isImageQuestion;
+  // Only trigger vision if the answer CHOICES themselves contain images,
+  // not decorative page/word images in the broader container.
+  const choices = _mbChoices(doc);
+  return choices.some(el => el.querySelector('img[src]:not([src*="icon"]):not([src*="svg"]), picture'));
 }
 
 window.runMembean = async function runMembean() {
+  // When injected with allFrames:true, both the main frame and iframes run.
+  // If we're the main frame and there's an accessible Membean iframe, bail out
+  // and let the iframe instance handle it to avoid duplicate progress messages.
+  if (window === window.top) {
+    for (const f of document.querySelectorAll('iframe')) {
+      try { if (f.contentDocument?.body) return { success: true, answered: 0, skipped: 0, site: 'membean', skippedFrame: true }; } catch {}
+    }
+  }
+
   console.log('[Pluto] Starting Membean automation');
   let answered = 0, skipped = 0, stuck = 0;
   report('⚡ Membean: scanning…', { answered, skipped });
 
   for (let i = 0; i < 150 && window._plutoRunning; i++) {
-    await sleep(800 + Math.random() * 400);
+    await sleep(100);
     const doc = _mbDoc();
 
     // Diagnostic log every 5 rounds
@@ -747,16 +748,15 @@ window.runMembean = async function runMembean() {
         const labels = choices.map(c => c.textContent?.trim() || '');
         const best = await aiMCQ(q, labels);
         console.log(`[Pluto] Question: "${q}", Choices: [${labels.join(', ')}], Best: ${best} (${labels[best]})`);
-        await jitter();
         const choice = choices[best];
         if (choice) {
-          // Try multiple click methods to ensure it registers
+          // Click immediately but with minimal delays between event types
           choice.click();
-          await sleep(50);
+          await sleep(10);
           choice.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-          await sleep(50);
+          await sleep(10);
           choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
-          await sleep(50);
+          await sleep(5);
           choice.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
         }
         answered++;
@@ -801,14 +801,13 @@ window.runMembean = async function runMembean() {
     if (!acted) {
       const nav = _mbBtn(doc, ['got it', 'i know', 'next', 'continue', 'ok', 'submit', 'done', 'finish']);
       if (nav) {
-        await jitter();
-        // Try multiple click methods to ensure it registers
+        // Click immediately but with minimal delays between event types
         nav.click();
-        await sleep(50);
+        await sleep(10);
         nav.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-        await sleep(50);
+        await sleep(10);
         nav.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
-        await sleep(50);
+        await sleep(5);
         nav.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
         report(`→ "${nav.textContent?.trim().slice(0, 22)}"`, { answered, skipped });
         await sleep(200);
@@ -828,11 +827,11 @@ window.runMembean = async function runMembean() {
         break;
       }
     } else {
-      // Wait for page change
+      // Wait for page to change after acting
       const oldFp = fingerprint();
       await sleep(500);
       for (let w = 0; w < 10; w++) {
-        await sleep(300);
+        await sleep(200);
         if (fpChanged(oldFp, fingerprint())) break;
       }
     }
