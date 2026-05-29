@@ -94,7 +94,6 @@ async function aiText(question) {
 async function typeInto(el, text) {
   if (!el) return;
   el.focus();
-  await sleep(80);
 
   // Use React's internal setter if available
   const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -109,7 +108,6 @@ async function typeInto(el, text) {
   // Fire all the events React/Angular/Vue listen to
   el.dispatchEvent(new Event('input',  { bubbles: true }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
-  await sleep(150);
 }
 
 // ── NAV HELPER ────────────────────────────────────────────────
@@ -748,10 +746,13 @@ window.runMembean = async function runMembean() {
         console.log(`[Pluto] Question: "${q}", Choices: [${labels.join(', ')}], Best: ${best} (${labels[best]})`);
         const choice = choices[best];
         if (choice) {
-          // Click immediately
+          // Click immediately but with minimal delays between event types
           choice.click();
+          await sleep(10);
           choice.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+          await sleep(10);
           choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
+          await sleep(5);
           choice.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
         }
         answered++;
@@ -793,10 +794,13 @@ window.runMembean = async function runMembean() {
     if (!acted) {
       const nav = _mbBtn(doc, ['got it', 'i know', 'next', 'continue', 'ok', 'submit', 'done', 'finish']);
       if (nav) {
-        // Click immediately without delays
+        // Click immediately but with minimal delays between event types
         nav.click();
+        await sleep(10);
         nav.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        await sleep(10);
         nav.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
+        await sleep(5);
         nav.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
         report(`→ "${nav.textContent?.trim().slice(0, 22)}"`, { answered, skipped });
         acted = true;
