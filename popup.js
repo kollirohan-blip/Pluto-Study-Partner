@@ -21,16 +21,39 @@ let automateActive = false;
 let activeSheet    = null;   // 'flash' | 'test' | 'research' | null
 let activeChatId   = null;   // current popup session chat ID in pluto_chats
 
-// ── THEME ─────────────────────────────────────────────────────────
+// ── THEME (legacy accent dots) ────────────────────────────────────
 function setTheme(t) {
-  const colors = { silver:'#b0b0c8', blue:'#4f8ef7' };
-  document.documentElement.style.setProperty('--accent', colors[t] || colors.silver);
   document.getElementById('dot-silver').style.border = t==='silver'?'2.5px solid #fff':'2.5px solid transparent';
   document.getElementById('dot-blue').style.border   = t==='blue'  ?'2.5px solid #fff':'2.5px solid transparent';
   chrome.storage.local.set({ theme:t });
 }
 document.getElementById('dot-silver').addEventListener('click', ()=>setTheme('silver'));
 document.getElementById('dot-blue')  .addEventListener('click', ()=>setTheme('blue'));
+
+// ── LIGHT / DARK THEME ───────────────────────────────────────────
+function applyPopupTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('pluto-theme', theme);
+  document.querySelectorAll('.icon-sun') .forEach(el => { el.style.display = theme === 'dark'  ? 'block' : 'none'; });
+  document.querySelectorAll('.icon-moon').forEach(el => { el.style.display = theme === 'light' ? 'block' : 'none'; });
+}
+
+(function () {
+  const saved = localStorage.getItem('pluto-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyPopupTheme(saved || (prefersDark ? 'dark' : 'light'));
+})();
+
+document.getElementById('theme-toggle-btn').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme') || 'light';
+  applyPopupTheme(cur === 'dark' ? 'light' : 'dark');
+});
+
+// ── MORE TOOLS TOGGLE ─────────────────────────────────────────────
+document.getElementById('btn-more').addEventListener('click', () => {
+  document.getElementById('feat-row-secondary').classList.toggle('visible');
+  document.getElementById('btn-more').classList.toggle('active');
+});
 
 // ── BOTTOM SHEET SYSTEM ───────────────────────────────────────────
 function openSheet(id, title, buildFn) {
@@ -77,7 +100,7 @@ async function getPageContext() {
       if (!tab?.id) return resolve({ url:'Unknown', title:'Unknown', text:'' });
 
       // Route through background so it auto-injects the content script if needed
-      chrome.runtime.sendMessage({ type:'GET_SMART_CONTEXT' }, r => {
+      chrome.runtime.sendMessage({ type:'GET_SMART_CONTEXT', tabId: tab.id }, r => {
         if (chrome.runtime.lastError || !r || r.error)
           resolve({ url:tab.url||'Unknown', title:tab.title||'Unknown', text:'' });
         else resolve(r);
@@ -87,7 +110,7 @@ async function getPageContext() {
 }
 
 async function callServer(message, extra = {}) {
-  const r = await fetch('https://pluto-server-production.up.railway.app/ask-aria', {
+  const r = await fetch('http://localhost:3000/ask-aria', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       message,
@@ -241,7 +264,7 @@ async function sendMessage(override) {
     cleanupTimers();
     bub.className = 'ai-bubble';
     bub.innerHTML = fmt(reply);
-    chatBox.scrollTo({ top: chatBox.scrollHeight, behavior: 'smooth' });
+    row.scrollIntoView({ behavior: 'smooth', block: 'start' });
     chatHistory.push({ text, sender: 'user' }, { text: reply, sender: 'ai' });
     chrome.storage.local.set({ chatHistory });
     saveMessageToChat(text, reply);
@@ -324,6 +347,17 @@ async function buildStudySheet(el) {
 
   if (!_studyCtx.text || _studyCtx.text.length < 50) {
     clearInterval(stepTimer);
+    if (_studyCtx.isPdf) {
+      load.innerHTML = `
+        <div style="text-align:center;padding:8px 0">
+          <div style="font-size:28px;margin-bottom:10px">📄</div>
+          <div style="font-size:13px;color:#fff;margin-bottom:6px;font-weight:600">PDF detected</div>
+          <div style="font-size:12px;color:var(--mid);line-height:1.6">Can't read canvas-rendered PDFs directly.<br>Use <strong style="color:#fff">Scan PDF</strong> to study this document.</div>
+          <button class="sh-gen-btn" id="study-pdf-btn" style="margin-top:14px">📄 Open Scan PDF</button>
+        </div>`;
+      load.querySelector('#study-pdf-btn')?.addEventListener('click', () => { closeSheet(); openSheet('pdf','📄 SCAN PDF', buildPDFSheet); });
+      return;
+    }
     load.innerHTML = `
       <div style="text-align:center;padding:8px 0">
         <div style="font-size:28px;margin-bottom:10px">📭</div>
@@ -663,7 +697,7 @@ async function checkPopupSubscription() {
       }
       try {
         const userId = await getPopupUserId();
-        const r = await fetch('https://pluto-server-production.up.railway.app/check-subscription', {
+        const r = await fetch('http://localhost:3000/check-subscription', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId }),
         });
@@ -713,7 +747,7 @@ function showPopupPaywallModal(featureName) {
   async function startCheckout(interval) {
     try {
       const userId = await getPopupUserId();
-      const r = await fetch('https://pluto-server-production.up.railway.app/create-checkout-session', {
+      const r = await fetch('http://localhost:3000/create-checkout-session', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, interval }),
       });
@@ -1324,6 +1358,11 @@ function saveMessageToChat(userText, aiReply) {
   });
 }
 
+// Open dashboard
+document.getElementById('open-dashboard-btn').addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
+});
+
 // Open in full window
 document.getElementById('btn-open-full').addEventListener('click', () => {
   const url = activeChatId
@@ -1480,8 +1519,9 @@ function buildPDFSheet(el) {
 
         const extracted = await extractPDFText(bytes);
 
-        if (extracted.length < 80) {
-          showPasteFallback('⚠️ This PDF uses compressed/scanned text. Paste the text content below:');
+        // Too short → likely a scanned/image PDF with no extractable text
+        if (extracted.length < 30) {
+          showPasteFallback('⚠️ This PDF appears to be scanned or image-based — no text layer found. Copy-paste the text content below instead:');
           return;
         }
 
@@ -1820,19 +1860,66 @@ function pdfExtractText(text, allText) {
   let bt;
   while ((bt = btRe.exec(text)) !== null) {
     const block = bt[1];
-    // (text)Tj
+
+    // (text)Tj — literal string
     for (const t of block.matchAll(/\(([^)\\]*(?:\\.[^)\\]*)*)\)\s*Tj/g))
       allText.push(decodePDFString(t[1]));
-    // [(text)-n(text)...]TJ
+
+    // <hex>Tj — hex-encoded string (CID fonts, UTF-16BE)
+    for (const t of block.matchAll(/<([0-9a-fA-F\s]+)>\s*Tj/g))
+      allText.push(decodePDFHex(t[1].replace(/\s/g, '')));
+
+    // [(text|<hex>)...]TJ — array form
     for (const t of block.matchAll(/\[([^\]]*)\]\s*TJ/g)) {
-      const joined = [...t[1].matchAll(/\(([^)\\]*(?:\\.[^)\\]*)*)\)/g)]
-        .map(p => decodePDFString(p[1])).join('');
+      const parts = [];
+      for (const p of t[1].matchAll(/\(([^)\\]*(?:\\.[^)\\]*)*)\)/g))
+        parts.push(decodePDFString(p[1]));
+      for (const p of t[1].matchAll(/<([0-9a-fA-F\s]+)>/g))
+        parts.push(decodePDFHex(p[1].replace(/\s/g, '')));
+      const joined = parts.join('');
       if (joined.trim()) allText.push(joined);
     }
-    // (text)' and (text)"
+
+    // (text)' / (text)" — newline-then-show operators
     for (const t of block.matchAll(/\(([^)\\]*(?:\\.[^)\\]*)*)\)\s*['"]/g))
       allText.push(decodePDFString(t[1]));
+
+    // <hex>' / <hex>"
+    for (const t of block.matchAll(/<([0-9a-fA-F\s]+)>\s*['"]/g))
+      allText.push(decodePDFHex(t[1].replace(/\s/g, '')));
   }
+}
+
+function decodePDFHex(hex) {
+  if (!hex || hex.length === 0) return '';
+  if (hex.length % 2) hex += '0';
+  const bytes = [];
+  for (let i = 0; i < hex.length; i += 2)
+    bytes.push(parseInt(hex.slice(i, i + 2), 16));
+
+  // UTF-16BE with BOM (FE FF)
+  if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+    let s = '';
+    for (let i = 2; i + 1 < bytes.length; i += 2)
+      s += String.fromCharCode((bytes[i] << 8) | bytes[i + 1]);
+    return s.replace(/\x00/g, '');
+  }
+
+  // Heuristic: pairs where the high byte is 0x00 → UTF-16BE (common for CID fonts)
+  if (bytes.length >= 4) {
+    let zeroHighBytes = 0;
+    for (let i = 0; i < bytes.length - 1; i += 2)
+      if (bytes[i] === 0x00) zeroHighBytes++;
+    if (zeroHighBytes >= bytes.length / 4) {
+      let s = '';
+      for (let i = 0; i + 1 < bytes.length; i += 2)
+        s += String.fromCharCode((bytes[i] << 8) | bytes[i + 1]);
+      return s.replace(/\x00/g, '');
+    }
+  }
+
+  // Fall back to Latin-1
+  return bytes.map(b => String.fromCharCode(b)).join('');
 }
 
 function decodePDFString(s) {
@@ -2872,3 +2959,11 @@ function addWelcomeLinks() {
     chatBox.appendChild(bub.parentElement ? row : bub);
   }
 }
+
+// ── POPUP SIDEBAR NAV ─────────────────────────────────────────
+document.querySelectorAll('.popup-nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const page = btn.dataset.page;
+    if (page) chrome.tabs.create({ url: chrome.runtime.getURL(page + '.html') });
+  });
+});

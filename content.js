@@ -15,9 +15,19 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   if (req.type === 'PLUTO_RESEARCH')    { runResearch(req.query, req.format).then(r => sendResponse(r)); return true; }
 });
 
+// Sites that render entirely in canvas with no readable text layer
+const CANVAS_ONLY_HOSTS = /scribd\.com|slideshare\.net|issuu\.com/;
+
 function getContext() {
+  const url = window.location.href;
+  // Pure canvas renderers have no accessible text — short-circuit before wasting a call
+  if (CANVAS_ONLY_HOSTS.test(url) || /\.pdf(\?|#|$)/i.test(url)) {
+    return { url, title: document.title, text: '', isPdf: true,
+             highlightedText: window.getSelection()?.toString().trim() || '' };
+  }
+
   let text = document.body.innerText || '';
-  
+
   // Try iframe content if main document is too short (Canvas uses iframes)
   if (text.length < 500) {
     for (const f of document.querySelectorAll('iframe')) {
@@ -27,9 +37,9 @@ function getContext() {
       } catch {} // Skip cross-origin iframes
     }
   }
-  
+
   return {
-    url: window.location.href, title: document.title,
+    url, title: document.title,
     text: text.slice(0, 15000),
     highlightedText: window.getSelection()?.toString().trim() || ''
   };
@@ -58,17 +68,27 @@ async function askAI(payload) {
 }
 
 // ── AI CALLS ──────────────────────────────────────────────────
+function _parseBotJSON(raw) {
+  const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
+  if (s === -1 || e === -1) throw new Error('No JSON object');
+  return JSON.parse(raw.slice(s, e + 1));
+}
+
 async function aiMCQ(question, choices) {
   if (!choices.length) return 0;
   try {
     const d = await askAI({
-      message: `You are taking a quiz. Reply with ONLY the single digit index number of the correct answer (0, 1, 2, or 3). Nothing else — just the number. Pick the best possible answer.\nQuestion: "${question.slice(0,300)}"\nOptions:\n${choices.map((c,i)=>`${i}: ${c.slice(0,150)}`).join('\n')}`,
+      message: `You are taking a quiz. Pick the single best answer.\nQuestion: "${question.slice(0,300)}"\nOptions:\n${choices.map((c,i)=>`${i}: ${c.slice(0,150)}`).join('\n')}\n\nRespond with ONLY this JSON shape: {"reasoning":"<one short sentence>","index":<integer 0-${choices.length-1}>,"confidence":"high"|"low"} — set confidence to "low" only if you're genuinely torn between options or the question relies on a fact you're not sure of.`,
       profile: { name: 'AutoBot' },
       pageContext: { url: location.href, title: document.title, text: '' },
       history: [], tutorMode: false
     });
-    const m = d.reply.trim().match(/\d/);
-    const idx = m ? parseInt(m[0]) : 0;
+    let idx;
+    try { idx = _parseBotJSON(d.reply).index; } catch { idx = null; }
+    if (!Number.isInteger(idx)) {
+      const m = d.reply.trim().match(/\d/);
+      idx = m ? parseInt(m[0]) : 0;
+    }
     return (idx >= 0 && idx < choices.length) ? idx : 0;
   } catch (e) { console.log('[Pluto] aiMCQ error:', e); return 0; }
 }
@@ -76,16 +96,18 @@ async function aiMCQ(question, choices) {
 async function aiText(question) {
   try {
     const d = await askAI({
-      message: `Answer with ONLY the answer word or short phrase. No punctuation at the end. Nothing else. Be concise and accurate.\nQuestion: "${question.slice(0,300)}"`,
+      message: `Give the shortest correct answer — a word or short phrase, no explanations, no trailing punctuation.\nQuestion: "${question.slice(0,300)}"\n\nRespond with ONLY this JSON shape: {"reasoning":"<one short sentence>","answer":"<answer text>","confidence":"high"|"low"} — set confidence to "low" only if you're genuinely unsure of the fact.`,
       profile: { name: 'AutoBot' },
       pageContext: { url: location.href, title: document.title, text: '' },
       history: [], tutorMode: false
     });
-    let answer = d.reply.trim().split('\n')[0].replace(/["""*]/g, '').trim();
-    // Remove common prefixes that AI adds
-    answer = answer.replace(/^(the answer is|answer:|the correct answer is|correct answer:)\s*/i, '').trim();
-    // Remove trailing explanations
-    answer = answer.split(/\s*[\.\!\?]\s*/)[0].trim();
+    let answer;
+    try { answer = String(_parseBotJSON(d.reply).answer || '').trim(); } catch { answer = null; }
+    if (!answer) {
+      answer = d.reply.trim().split('\n')[0].replace(/["""*]/g, '').trim();
+      answer = answer.replace(/^(the answer is|answer:|the correct answer is|correct answer:)\s*/i, '').trim();
+      answer = answer.split(/\s*[\.\!\?]\s*/)[0].trim();
+    }
     return answer;
   } catch { return ''; }
 }
@@ -335,6 +357,14 @@ window.runCanvas = async function runCanvas() {
       }
     }
 
+    // ── Drag-and-drop (categorization/matching) ──
+    if (await _answerDragCategories(answeredGroups, (itemText) => {
+      answered++;
+      report(`✓ Sorted "${itemText.slice(0, 30)}"`, { answered, skipped });
+    })) {
+      acted = true;
+    }
+
     // ── Navigation ──
     if (!acted) {
       const navBtn = document.querySelector('button[type="submit"]:not([disabled]), button:not([disabled]):contains("Next"), button:not([disabled]):contains("Submit")');
@@ -364,33 +394,96 @@ async function _processCanvasIframe(frame, answeredSet) {
     const iDoc = frame.contentDocument;
     if (!iDoc) return false;
 
+    const iframeQText = () => iDoc.querySelector('[class*="question"],[id*="question"] label, .question-title, [class*="text"]')?.textContent?.trim() || 'Answer this';
+
+    // ── Radio buttons ──
     const radios = iDoc.querySelectorAll('input[type="radio"]:not([disabled])');
-    if (radios.length < 2) return false;
+    if (radios.length >= 2) {
+      let allAnswered = true;
+      for (const r of radios) { if (!r.checked) { allAnswered = false; break; } }
+      if (!allAnswered) {
+        const labels = Array.from(radios).map(r => {
+          const lbl = iDoc.querySelector(`label[for="${r.id}"]`) || r.closest('label') || r.parentElement;
+          return lbl?.textContent?.trim() || r.value || '';
+        }).filter(Boolean);
 
-    let allAnswered = true;
-    for (const r of radios) {
-      if (!r.checked) { allAnswered = false; break; }
+        if (labels.length >= 2) {
+          const best = await aiMCQ(iframeQText(), labels);
+          await jitter();
+          radios[best]?.click();
+          const lbl = iDoc.querySelector(`label[for="${radios[best]?.id}"]`);
+          if (lbl) { await sleep(80); lbl.click(); }
+          return true;
+        }
+      }
     }
-    if (allAnswered) return false;
 
-    const labels = Array.from(radios).map(r => {
-      const lbl = iDoc.querySelector(`label[for="${r.id}"]`) || r.closest('label') || r.parentElement;
-      return lbl?.textContent?.trim() || r.value || '';
-    }).filter(Boolean);
+    // ── Dropdowns (Multiple Dropdowns / Matching questions) ──
+    for (const sel of iDoc.querySelectorAll('select:not([disabled])')) {
+      if (!sel.offsetParent || sel.selectedIndex > 0) continue;
+      const opts = Array.from(sel.options).slice(1);
+      if (!opts.length) continue;
+      const qText = sel.closest('[class*="question"]')?.querySelector('p,span,label')?.textContent?.trim() || iframeQText();
+      const best = await aiMCQ(qText, opts.map(o => o.text));
+      await jitter();
+      sel.value = opts[best]?.value || opts[0].value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }
 
-    if (labels.length < 2) return false;
+    // ── Text inputs (Fill in the Blank) ──
+    for (const inp of iDoc.querySelectorAll('input[type="text"]:not([disabled]):not([readonly]),textarea:not([disabled]):not([readonly])')) {
+      if (!inp.offsetParent || inp.value?.trim()) continue;
+      const qText = inp.closest('[class*="question"]')?.querySelector('label,p,[class*="text"]')?.textContent?.trim() || iframeQText();
+      const ans = await aiText(qText);
+      if (ans) {
+        await typeInto(inp, ans);
+        return true;
+      }
+    }
 
-    const qText = iDoc.querySelector('[class*="question"],[id*="question"] label, .question-title, [class*="text"]')?.textContent?.trim() || 'Answer this';
-    const best = await aiMCQ(qText, labels);
-    await jitter();
-    radios[best]?.click();
-    const lbl = iDoc.querySelector(`label[for="${radios[best]?.id}"]`);
-    if (lbl) { await sleep(80); lbl.click(); }
-    return true;
+    return false;
   } catch (e) {
     console.log('[Pluto Canvas iframe error]', e);
     return false;
   }
+}
+
+// ── DRAG-AND-DROP CATEGORIZATION/MATCHING (best-effort) ────────
+// Canvas's drag-box widget markup varies (native HTML5 DnD vs. a pointer-based
+// library), so this detects by generic signal — [draggable] items dropped into
+// containers whose class/attributes read like a category or bin — rather than
+// exact selectors. onAnswer(itemText) lets the caller track its own counter.
+async function _answerDragCategories(answeredGroups, onAnswer) {
+  const dragItems = Array.from(document.querySelectorAll('[draggable="true"]:not([aria-disabled="true"])'))
+    .filter(el => el.offsetParent);
+  if (!dragItems.length) return false;
+
+  const dropZones = Array.from(document.querySelectorAll(
+    '[class*="drop" i], [data-testid*="drop" i], [aria-dropeffect], [class*="category" i], [class*="bin" i], [class*="target" i]'
+  )).filter(el => el.offsetParent && !el.hasAttribute('draggable') && !el.closest('[draggable="true"]'));
+  if (dropZones.length < 2) return false;
+
+  const container = dragItems[0].closest('[class*="question"],[id*="question"],fieldset,section') || document.body;
+  const qText = container.querySelector('p,legend,[class*="prompt"],[class*="instructions"]')?.textContent?.trim() || 'Sort each item into the correct category';
+  const zoneLabels = dropZones.map(z => (z.querySelector('[class*="title"],[class*="label"],h3,h4')?.textContent || z.textContent || '').trim().slice(0, 60) || 'Category');
+
+  let acted = false;
+  for (const item of dragItems) {
+    const itemText = item.textContent?.trim().slice(0, 150) || '';
+    if (!itemText) continue;
+    const gid = 'drag_' + itemText;
+    if (answeredGroups.has(gid)) continue;
+
+    const best = await aiMCQ(`${qText}\nWhich category does "${itemText}" belong in?`, zoneLabels);
+    await jitter();
+    await simulateDrag(item, dropZones[best]);
+    answeredGroups.add(gid);
+    acted = true;
+    onAnswer?.(itemText);
+    await sleep(500);
+  }
+  return acted;
 }
 
 // ── MEMBEAN ───────────────────────────────────────────────────
@@ -942,6 +1035,14 @@ window.runGeneric = async function runGeneric() {
       await sleep(300);
     }
 
+    // ── Drag-and-drop (categorization/matching) ──
+    if (await _answerDragCategories(answeredGroups, (itemText) => {
+      answered++;
+      report(`✓ Sorted "${itemText.slice(0, 30)}"`, { answered, skipped });
+    })) {
+      acted = true;
+    }
+
     // ── Navigate or wait ──
     if (acted) {
       emptyLoops = 0;
@@ -1046,6 +1147,23 @@ async function runVision(site) {
         await waitForNewQuestion(fp, 4000);
       }
     }
+    if (instruction.action === 'drag') {
+      const fx = Math.round(instruction.fromX * window.innerWidth  / 100);
+      const fy = Math.round(instruction.fromY * window.innerHeight / 100);
+      const tx = Math.round(instruction.toX   * window.innerWidth  / 100);
+      const ty = Math.round(instruction.toY   * window.innerHeight / 100);
+      await simulateDragAt(fx, fy, tx, ty);
+      if (instruction.isAnswer) {
+        answered++;
+        report(`✓ Q${answered}: dragged "${instruction.label || ''}"`, { answered, skipped });
+        await sleep(600);
+        const fp = fingerprint();
+        await waitForNewQuestion(fp, 4000);
+      } else {
+        report(`→ dragged "${instruction.label || ''}"`, { answered, skipped });
+        await sleep(600);
+      }
+    }
   }
   return { success: true, answered, skipped, site };
 }
@@ -1059,6 +1177,46 @@ function clickAt(x, y) {
   );
 }
 
+// ── DRAG-AND-DROP ─────────────────────────────────────────────
+// Categorization/matching widgets vary by framework (native HTML5 DnD vs.
+// pointer-based libraries like dnd-kit/sortable), so fire both event families.
+async function simulateDrag(source, target) {
+  const sr = source.getBoundingClientRect(), tr = target.getBoundingClientRect();
+  const sx = sr.left + sr.width / 2, sy = sr.top + sr.height / 2;
+  const tx = tr.left + tr.width / 2, ty = tr.top + tr.height / 2;
+
+  const dt = new DataTransfer();
+  const fireDrag = (el, type, x, y) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt }));
+  fireDrag(source, 'dragstart', sx, sy);
+  fireDrag(target, 'dragenter', tx, ty);
+  fireDrag(target, 'dragover', tx, ty);
+  fireDrag(target, 'drop', tx, ty);
+  fireDrag(source, 'dragend', tx, ty);
+  await sleep(150);
+
+  const firePointer = (el, type, x, y) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 1, view: window }));
+  const fireMouse = (el, type, x, y) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, view: window }));
+  firePointer(source, 'pointerdown', sx, sy);
+  fireMouse(source, 'mousedown', sx, sy);
+  const steps = 6;
+  for (let i = 1; i <= steps; i++) {
+    const x = sx + (tx - sx) * (i / steps), y = sy + (ty - sy) * (i / steps);
+    const el = document.elementFromPoint(x, y) || source;
+    firePointer(el, 'pointermove', x, y);
+    fireMouse(el, 'mousemove', x, y);
+    await sleep(25);
+  }
+  firePointer(target, 'pointerup', tx, ty);
+  fireMouse(target, 'mouseup', tx, ty);
+}
+
+async function simulateDragAt(fx, fy, tx, ty) {
+  const source = document.elementFromPoint(fx, fy);
+  const target = document.elementFromPoint(tx, ty);
+  if (!source || !target) return;
+  await simulateDrag(source, target);
+}
+
 async function askVision(dataUrl, site) {
   const b64 = dataUrl.split(',')[1];
   try {
@@ -1066,16 +1224,19 @@ async function askVision(dataUrl, site) {
       message: `You are automating a ${site} quiz. Look at this screenshot.
 Identify the next action. If you see an unanswered question, click the CORRECT answer.
 If you see a text input, type the answer. If you see a Next/Continue button after answering, click it.
+If you see a drag-and-drop / categorization / matching question (items you drag into boxes or slots),
+pick ONE item that hasn't been placed yet and drag it to the box it correctly belongs in.
 If a timer is running, wait. If done, say done.
 
 Respond ONLY with JSON (no markdown):
 {"action":"click","x":50,"y":60,"label":"answer text","isAnswer":true}
 or {"action":"type","text":"answer"}
+or {"action":"drag","fromX":30,"fromY":50,"toX":70,"toY":50,"label":"item text","isAnswer":true}
 or {"action":"wait","reason":"timer","ms":3000}
 or {"action":"click","x":50,"y":70,"label":"Next","isAnswer":false}
 or {"action":"done"}
 
-x,y are percentage of screen (0-100).`,
+x,y (and fromX/fromY/toX/toY) are percentage of screen (0-100).`,
       profile: { name: 'VisionBot' },
       pageContext: { url: location.href, title: document.title, text: '', screenshot: b64 },
       history: [], tutorMode: false

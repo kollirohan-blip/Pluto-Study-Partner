@@ -43,8 +43,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // These come from popup and need to go to the active tab
   const RELAY_TYPES = ['GET_SMART_CONTEXT', 'PLUTO_STOP', 'PLUTO_RESEARCH', 'PLUTO_INJECT_TEXT'];
   if (RELAY_TYPES.includes(request.type)) {
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }, async tabs => {
-      const tabId = tabs[0]?.id;
+    const resolveTab = cb => {
+      if (request.tabId) return cb(request.tabId);
+      chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => cb(tabs[0]?.id));
+    };
+    resolveTab(async tabId => {
       if (!tabId) { sendResponse({ error: 'No active tab' }); return; }
       const ready = await ensureContentScript(tabId);
       if (!ready) { sendResponse({ error: 'Could not inject on this page' }); return; }
@@ -72,7 +75,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // ── AI PROXY: content scripts can't reach localhost from HTTPS pages ──
   // Route through background (extension origin) which is exempt from PNA restrictions
   if (request.type === 'PLUTO_AI_REQUEST') {
-    fetch('https://pluto-server-production.up.railway.app/ask-aria', {
+    fetch('http://localhost:3000/ask-aria', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request.payload)

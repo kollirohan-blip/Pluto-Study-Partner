@@ -2,7 +2,7 @@ import {
   initStarCanvas, askAI, storage, toast
 } from './pluto-shared.js';
 
-const SERVER = 'https://pluto-server-production.up.railway.app';
+const SERVER = 'http://localhost:3000';
 const $      = id => document.getElementById(id);
 
 // ── State ──────────────────────────────────────────────────

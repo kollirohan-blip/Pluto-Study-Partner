@@ -34,6 +34,25 @@ const sheetTitle   = document.getElementById('sheet-title');
 const sheetBody    = document.getElementById('sheet-body');
 const sheetClose   = document.getElementById('sheet-close');
 
+// ── LIGHT / DARK THEME ───────────────────────────────────────────
+function applyChatTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('pluto-theme', theme);
+  document.querySelectorAll('.icon-sun') .forEach(el => { el.style.display = theme === 'dark'  ? 'block' : 'none'; });
+  document.querySelectorAll('.icon-moon').forEach(el => { el.style.display = theme === 'light' ? 'block' : 'none'; });
+}
+
+(function () {
+  const saved = localStorage.getItem('pluto-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyChatTheme(saved || (prefersDark ? 'dark' : 'light'));
+})();
+
+document.getElementById('theme-toggle-btn').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme') || 'light';
+  applyChatTheme(cur === 'dark' ? 'light' : 'dark');
+});
+
 // ── Basic listeners ────────────────────────────────────────────────
 document.getElementById('sidebar-toggle').addEventListener('click', () => sidebarEl.classList.toggle('collapsed'));
 newChatBtn.addEventListener('click', () => createNewChat(true));
@@ -206,20 +225,24 @@ function clearMsgDots(){
 function updateActivePill(){
   const pill=document.getElementById('active-feat-pill'); if(!pill) return;
   const icon=document.getElementById('afp-icon'), label=document.getElementById('afp-label'), close=document.getElementById('afp-close');
+  const svgTimer    = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  const svgSounds   = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+  const svgPodcast  = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>';
+  const svgTutor    = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>';
   if(window._timerRunning){
-    icon.textContent='⏱️'; label.textContent='TIMER';
+    icon.innerHTML=svgTimer; label.textContent='TIMER';
     close.onclick=()=>{window._timerStop?.();};
     pill.classList.remove('hidden');
   } else if(_mood.playing){
-    icon.textContent='🎵'; label.textContent=(_mood.playing).slice(0,10).toUpperCase();
+    icon.innerHTML=svgSounds; label.textContent=(_mood.playing).slice(0,10).toUpperCase();
     close.onclick=()=>{window._moodStop?.();};
     pill.classList.remove('hidden');
   } else if(speechSynthesis.speaking){
-    icon.textContent='🎙️'; label.textContent='PODCAST';
+    icon.innerHTML=svgPodcast; label.textContent='PODCAST';
     close.onclick=()=>{speechSynthesis.cancel();updateActivePill();};
     pill.classList.remove('hidden');
   } else if(tutorActive){
-    icon.textContent='🎓'; label.textContent='TUTOR';
+    icon.innerHTML=svgTutor; label.textContent='TUTOR';
     close.onclick=()=>{
       tutorActive=false;
       document.getElementById('btn-tutor')?.classList.remove('active');
@@ -257,71 +280,74 @@ async function sendMessage() {
   const activeChat=chats.find(c=>c.id===activeChatId);
   const history=(activeChat?.messages||[]).slice(-6).map(m=>({text:m.text,sender:m.role==='user'?'user':'ai'}));
   currentAbortController=new AbortController(); const {signal}=currentAbortController;
-  let reply='', firstChunk=true, gotBrainEvent=false, streamSucceeded=false;
+  let reply='', firstChunk=true, gotBrainEvent=false, streamSucceeded=false, timeoutAborted=false;
   const ctx=await getPageContext();
   try {
-    const r=await fetch('https://pluto-server-production.up.railway.app/ask-aria-stream',{method:'POST',signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,profile:userProfile||{name:'Student'},pageContext:ctx,history,tutorMode:tutorActive})});
+    const r=await fetch('http://localhost:3000/ask-aria-stream',{method:'POST',signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,profile:userProfile||{name:'Student'},pageContext:ctx,history,tutorMode:tutorActive})});
     const reader=r.body.getReader(), decoder=new TextDecoder();
     let buf='';
-    // Reject if no chunk arrives within 5 seconds
-    let firstChunkTimer, firstChunkReject;
-    const firstChunkTimeout=new Promise((_,rej)=>{firstChunkReject=rej;firstChunkTimer=setTimeout(()=>rej(new Error('stream_timeout')),5000);});
+    // Abort stream + fall back if no first chunk within 12 s
+    let firstChunkTimer=setTimeout(()=>{
+      timeoutAborted=true; currentAbortController?.abort();
+    },12000);
     const readLoop=async()=>{
-      while(true){
-        const {done,value}=await reader.read(); if(done) break;
-        buf+=decoder.decode(value,{stream:true});
-        const events=buf.split('\n\n'); buf=events.pop();
-        for(const ev of events){
-          if(!ev.trim()) continue;
-          const lines=ev.split('\n');
-          const etype=lines.find(l=>l.startsWith('event:'))?.slice(7).trim();
-          const dline=lines.find(l=>l.startsWith('data:'))?.slice(5).trim();
-          if(!etype||!dline) continue;
-          let data; try{data=JSON.parse(dline);}catch{continue;}
-          if(etype==='brain'){
-            gotBrainEvent=true;
-            updateBrainStats(data.matches||[],data.totalBrainSize??null);
-          } else if(etype==='chunk'){
-            if(firstChunk){
-              firstChunk=false; streamSucceeded=true;
+      try{
+        while(true){
+          const {done,value}=await reader.read(); if(done) break;
+          buf+=decoder.decode(value,{stream:true});
+          const events=buf.split('\n\n'); buf=events.pop();
+          for(const ev of events){
+            if(!ev.trim()) continue;
+            const lines=ev.split('\n');
+            const etype=lines.find(l=>l.startsWith('event:'))?.slice(7).trim();
+            const dline=lines.find(l=>l.startsWith('data:'))?.slice(5).trim();
+            if(!etype||!dline) continue;
+            let data; try{data=JSON.parse(dline);}catch{continue;}
+            if(etype==='brain'){
+              gotBrainEvent=true;
+              updateBrainStats(data.matches||[],data.totalBrainSize??null);
+            } else if(etype==='chunk'){
+              if(firstChunk){
+                firstChunk=false; streamSucceeded=true;
+                clearTimeout(firstChunkTimer);
+                cleanup(); thinkBub.className='ai-bubble'; thinkBub.innerHTML='';
+              }
+              reply+=data.text; thinkBub.innerHTML=fmt(reply);
+              chatBox.scrollTo({top:chatBox.scrollHeight,behavior:'smooth'});
+            } else if(etype==='done'){
               clearTimeout(firstChunkTimer);
-              cleanup(); thinkBub.className='ai-bubble'; thinkBub.innerHTML='';
+              cleanup(); thinkBub.innerHTML=fmt(reply);
+              thinkRow.scrollIntoView({behavior:'smooth',block:'start'});
+              if(activeChat){
+                activeChat.messages.push({role:'user',text,timestamp:Date.now()-500},{role:'assistant',text:reply,timestamp:Date.now()});
+                if(activeChat.messages.length===2){activeChat.title=text.slice(0,40)+(text.length>40?'…':'');chatTitleEl.textContent=activeChat.title;}
+                activeChat.updated=Date.now(); saveChats(); renderSidebar();
+              }
+              if(!gotBrainEvent) updateBrainStats([],null);
+              chrome.runtime.sendMessage({ type: 'REFRESH_BRAIN_STATS' });
+            } else if(etype==='error'){
+              clearTimeout(firstChunkTimer);
+              cleanup(); thinkBub.className='error-bubble';
+              thinkBub.innerHTML=`<strong>Error:</strong> ${escHtml(data.message||'Something went wrong')}`;
             }
-            reply+=data.text; thinkBub.innerHTML=fmt(reply);
-            chatBox.scrollTo({top:chatBox.scrollHeight,behavior:'smooth'});
-          } else if(etype==='done'){
-            clearTimeout(firstChunkTimer);
-            cleanup(); thinkBub.innerHTML=fmt(reply);
-            chatBox.scrollTo({top:chatBox.scrollHeight,behavior:'smooth'});
-            if(activeChat){
-              activeChat.messages.push({role:'user',text,timestamp:Date.now()-500},{role:'assistant',text:reply,timestamp:Date.now()});
-              if(activeChat.messages.length===2){activeChat.title=text.slice(0,40)+(text.length>40?'…':'');chatTitleEl.textContent=activeChat.title;}
-              activeChat.updated=Date.now(); saveChats(); renderSidebar();
-            }
-            if(!gotBrainEvent) updateBrainStats([],null);
-            chrome.runtime.sendMessage({ type: 'REFRESH_BRAIN_STATS' });
-          } else if(etype==='error'){
-            clearTimeout(firstChunkTimer);
-            cleanup(); thinkBub.className='error-bubble';
-            thinkBub.innerHTML=`<strong>Error:</strong> ${escHtml(data.message||'Something went wrong')}`;
           }
         }
-      }
+      }catch(innerErr){ /* AbortError from abort() — handled in outer catch */ throw innerErr; }
     };
-    await Promise.race([readLoop(), firstChunkTimeout]);
+    await readLoop();
   } catch(e) {
-    if(e.name==='AbortError'){cleanup();thinkRow.remove();}
+    if(e.name==='AbortError' && !timeoutAborted){cleanup();thinkRow.remove();}
     else if(!streamSucceeded){
-      // Streaming failed or no chunks in 5 s — fall back to /ask-aria
+      // Streaming failed or timed out (12 s) — fall back to /ask-aria
       cleanup();
       thinkBub.className='thinking-bubble';
       thinkBub.innerHTML=`<div class="thinking-dots"><div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div></div><div class="thinking-status">Switching to fallback...</div>`;
       try {
-        const fallbackR=await fetch('https://pluto-server-production.up.railway.app/ask-aria',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,profile:userProfile||{name:'Student'},pageContext:ctx,history,tutorMode:tutorActive})});
+        const fallbackR=await fetch('http://localhost:3000/ask-aria',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,profile:userProfile||{name:'Student'},pageContext:ctx,history,tutorMode:tutorActive})});
         const fallbackD=await fallbackR.json();
         reply=fallbackD.reply||'';
         thinkBub.className='ai-bubble'; thinkBub.innerHTML=fmt(reply);
-        chatBox.scrollTo({top:chatBox.scrollHeight,behavior:'smooth'});
+        thinkRow.scrollIntoView({behavior:'smooth',block:'start'});
         if(activeChat){
           activeChat.messages.push({role:'user',text,timestamp:Date.now()-500},{role:'assistant',text:reply,timestamp:Date.now()});
           if(activeChat.messages.length===2){activeChat.title=text.slice(0,40)+(text.length>40?'…':'');chatTitleEl.textContent=activeChat.title;}
@@ -379,7 +405,7 @@ async function getPageContext() {
   return new Promise(resolve=>{
     chrome.tabs.query({active:true,lastFocusedWindow:true},tabs=>{
       const tab=tabs[0]; if(!tab?.id) return resolve({url:'Unknown',title:'Unknown',text:''});
-      chrome.runtime.sendMessage({type:'GET_SMART_CONTEXT'},r=>{
+      chrome.runtime.sendMessage({type:'GET_SMART_CONTEXT',tabId:tab.id},r=>{
         if(chrome.runtime.lastError||!r||r.error) resolve({url:tab.url||'Unknown',title:tab.title||'Unknown',text:''});
         else resolve(r);
       });
@@ -387,7 +413,7 @@ async function getPageContext() {
   });
 }
 async function callServer(message,extra={}){
-  const r=await fetch('https://pluto-server-production.up.railway.app/ask-aria',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,profile:userProfile||{name:'Student'},pageContext:extra.ctx||{url:'Unknown',title:'Unknown',text:''},history:extra.history||[],tutorMode:extra.tutor||false})});
+  const r=await fetch('http://localhost:3000/ask-aria',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,profile:userProfile||{name:'Student'},pageContext:extra.ctx||{url:'Unknown',title:'Unknown',text:''},history:extra.history||[],tutorMode:extra.tutor||false})});
   const d=await r.json(); return d.reply;
 }
 function parseJSON(raw){const s=raw.indexOf('['),e=raw.lastIndexOf(']');if(s===-1||e===-1)throw new Error('No JSON array');return JSON.parse(raw.slice(s,e+1));}
@@ -426,6 +452,10 @@ async function buildStudySheet(el) {
   _studyCtx=await getPageContext();
   if(!_studyCtx.text||_studyCtx.text.length<50){
     clearInterval(stepTimer);
+    if(_studyCtx.isPdf){
+      load.innerHTML=`<div style="text-align:center;padding:8px 0"><div style="font-size:28px;margin-bottom:10px">📄</div><div style="font-size:13px;color:#fff;margin-bottom:6px;font-weight:600">PDF detected</div><div style="font-size:12px;color:var(--mid);line-height:1.6">Can't read canvas-rendered PDFs directly.<br>Use <strong style="color:#fff">Scan PDF</strong> to study this document.</div><button class="sh-gen-btn" id="study-pdf-btn" style="margin-top:14px">📄 Open Scan PDF</button></div>`;
+      load.querySelector('#study-pdf-btn')?.addEventListener('click',()=>{closeSheet();openSheet('pdf','📄 SCAN PDF',buildPDFSheet);}); return;
+    }
     load.innerHTML=`<div style="text-align:center;padding:8px 0"><div style="font-size:28px;margin-bottom:10px">📭</div><div style="font-size:12px;color:var(--mid);line-height:1.6">Can't read this page.<br>Paste the content below.</div><textarea class="sh-input" id="study-paste" placeholder="Paste text here..." style="margin-top:14px;height:90px;display:block;width:100%"></textarea><button class="sh-gen-btn" id="study-paste-btn" style="margin-top:8px">⚡ Study This</button></div>`;
     load.querySelector('#study-paste-btn')?.addEventListener('click',async()=>{
       const t=load.querySelector('#study-paste')?.value.trim(); if(!t) return;

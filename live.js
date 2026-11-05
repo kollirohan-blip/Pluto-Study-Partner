@@ -1,6 +1,6 @@
 import { initStarCanvas, getUsername, storage, toast, requirePremium } from './pluto-shared.js';
 
-const SERVER   = 'https://pluto-server-production.up.railway.app';
+const SERVER   = 'http://localhost:3000';
 const Q_SECS   = 20;
 const RESULT_SECS = 3;
 const MAX_Q    = 10;

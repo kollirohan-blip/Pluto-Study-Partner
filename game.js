@@ -33,7 +33,7 @@ const G = {
   topic:   ''
 };
 
-const SERVER = 'https://pluto-server-production.up.railway.app/ask-aria';
+const SERVER = 'http://localhost:3000/ask-aria';
 
 // ── SHOP ITEMS ────────────────────────────────────────────────
 const SHOP = [

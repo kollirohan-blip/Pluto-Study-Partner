@@ -1,4 +1,10 @@
-﻿import { initStarCanvas, askAI, storage, toast, logActivity, requirePremium } from './pluto-shared.js';
+﻿import { initStarCanvas, askAI, storage, toast, logActivity, requirePremium, initTheme, applyTheme, toggleTheme } from './pluto-shared.js';
+
+// ── Theme setup ───────────────────────────────────────────────────
+initTheme();
+document.querySelectorAll('.theme-toggle, #theme-toggle-btn, #theme-toggle-btn-main').forEach(btn => {
+  btn.addEventListener('click', toggleTheme);
+});
 
 // Renders $...$ (inline) and $$...$$ (display) LaTeX in any DOM element.
 function renderMath(el) {
@@ -160,7 +166,7 @@ async function buildAPGrid() {
 
   let apCourses = [];
   try {
-    const r = await fetch('https://pluto-server-production.up.railway.app/courses');
+    const r = await fetch('http://localhost:3000/courses');
     const data = await r.json();
     apCourses = data.ap || [];
   } catch {
@@ -240,10 +246,10 @@ async function generateSetTest() {
   const prompt = 'Generate a practice test from these flashcard pairs:\n'
     + cards.map(c => 'Term: "' + c.term + '" — Def: "' + c.def + '"').join('\n')
     + '\n\nCreate exactly ' + count + ' questions. Use these types: ' + types + '.'
-    + '\n- mc: 4 choices, one correct (index 0-3)'
+    + '\n- mc: 4 choices (no letter prefix), one correct (index 0-3)'
     + '\n- tf: True/False question, correct is true or false'
     + '\n- written: short answer'
-    + '\nReturn ONLY a JSON array:\n[{"type":"mc","q":"...","choices":["A. ...","B. ...","C. ...","D. ..."],"correct":0,"topic":"...","explanation":"..."},{"type":"tf","q":"...","correct":true,"topic":"...","explanation":"..."},{"type":"written","q":"...","answer":"...","topic":"...","explanation":"..."}]';
+    + '\nReturn ONLY a JSON array:\n[{"type":"mc","q":"...","choices":["...","...","...","..."],"correct":0,"topic":"...","explanation":"..."},{"type":"tf","q":"...","correct":true,"topic":"...","explanation":"..."},{"type":"written","q":"...","answer":"...","topic":"...","explanation":"..."}]';
 
   try {
     const res = await askAI({ message: prompt, history: [] });
@@ -272,7 +278,7 @@ async function fetchGeneratedTest(exam, forceRegen = false, mode = 'quick', mode
 
   // Try standards-aware server endpoint first
   try {
-    const r = await fetch('https://pluto-server-production.up.railway.app/generate-test', {
+    const r = await fetch('http://localhost:3000/generate-test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ course: exam.slug, system: exam.system, mode, n: modeN }),
@@ -284,15 +290,46 @@ async function fetchGeneratedTest(exam, forceRegen = false, mode = 'quick', mode
     }
   } catch { /* server down or busy — fall through */ }
 
-  // Fallback: generic AI generation via existing askAI proxy
+  // Fallback: standards-first AI generation
   const fallbackN = mode === 'full' ? 50 : (modeN || exam.n || 10);
-  const prompt = 'Create a realistic ' + exam.subject + ' practice test. Generate exactly ' + fallbackN + ' multiple-choice questions matching actual exam format, vocabulary, and difficulty. Diverse topics. Use LaTeX ($...$) for any math. For science/history courses include a "stimulus" field (brief graph/table/passage description) for ~50% of questions; set null for standalone questions.'
-    + '\nReturn ONLY a JSON array:\n[{"type":"mc","stimulus":null,"q":"...","choices":["A. ...","B. ...","C. ...","D. ..."],"correct":0,"topic":"...","explanation":"...","standards":[],"standardsDetail":[]}]';
+
+  // Step 1: Pull relevant standards to anchor question generation
+  let standards = [];
+  try {
+    const sr = await fetch('http://localhost:3000/retrieve-standards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: exam.subject, system: exam.system, course: exam.slug, k: 8 }),
+    });
+    const sd = await sr.json();
+    standards = sd.standards || [];
+  } catch { /* no standards available */ }
+
+  const stdBlock = standards.length
+    ? '\nAnchor every question to one of these official standards:\n'
+      + standards.map(s => `${s.code}: ${s.name}${s.text ? ' — ' + s.text : ''}`).join('\n')
+    : '';
+
+  // Step 2: Compute AP-realistic MC/FRQ split
+  const isAP = exam.system === 'ap';
+  const mcCount = isAP ? Math.round(fallbackN * 0.75) : fallbackN;
+  const frqCount = isAP ? fallbackN - mcCount : 0;
+  const countLine = frqCount > 0
+    ? `exactly ${mcCount} multiple-choice (type:"mc") and ${frqCount} free-response (type:"written") questions`
+    : `exactly ${mcCount} multiple-choice (type:"mc") questions`;
+
+  const prompt = `Create a realistic ${exam.subject} practice test with ${countLine}, matching actual exam difficulty and vocabulary. Diverse topics spread across units.${stdBlock}
+- MC: 4 answer options (no letter prefix), one correct (0-indexed). Include a "stimulus" (brief passage/graph/table description) for ~40% of MC; null for standalone.
+- Written/FRQ: open-ended, include a model "answer".
+- Each question must include "standardsDetail":[{"code":"...","name":"...","description":"..."}] listing 1-2 standards it tests.
+- Use LaTeX ($...$) for math expressions.
+Return ONLY valid JSON array:
+[{"type":"mc","stimulus":null,"q":"...","choices":["...","...","...","..."],"correct":0,"topic":"...","explanation":"...","standardsDetail":[{"code":"...","name":"...","description":"..."}]},{"type":"written","q":"...","answer":"...","topic":"...","explanation":"...","standardsDetail":[...]}]`;
+
   const res = await askAI({ message: prompt, history: [] });
   const raw = res && res.reply ? res.reply : (typeof res === 'string' ? res : '');
   const qs = safeParseJSON(raw);
   if (!qs?.length) throw new Error('Generation failed');
-  // Ensure standardsDetail exists so the rest of the code can reference it safely
   qs.forEach(q => { if (!q.standardsDetail) q.standardsDetail = []; });
   await storage.set({ [cacheKey]: qs });
   return qs;
@@ -317,7 +354,7 @@ async function showModePicker(exam) {
   // Fetch exam config from server
   let cfg = null;
   try {
-    const r = await fetch('https://pluto-server-production.up.railway.app/exam-config?course=' + (exam.slug || ''));
+    const r = await fetch('http://localhost:3000/exam-config?course=' + (exam.slug || ''));
     const data = await r.json();
     cfg = data.config;
   } catch { /* offline — show quick only */ }
@@ -442,7 +479,7 @@ const _wikiImgCache = new Map();
 async function fetchWikipediaImage(stimText) {
   if (_wikiImgCache.has(stimText)) return _wikiImgCache.get(stimText);
   try {
-    const r = await fetch(`https://pluto-server-production.up.railway.app/wiki-image?stim=${encodeURIComponent(stimText)}`);
+    const r = await fetch(`http://localhost:3000/wiki-image?stim=${encodeURIComponent(stimText)}`);
     const { url, title } = await r.json();
     if (url) {
       console.log('[Wiki] image:', title, url);
@@ -455,10 +492,16 @@ async function fetchWikipediaImage(stimText) {
   }
 }
 
+function updateProgress(current, total) {
+  const bar = $('test-progress-bar');
+  if (bar) bar.style.width = (total > 0 ? ((current + 1) / total) * 100 : 0) + '%';
+}
+
 function renderQuestion() {
   const q   = questions[currentQ];
   const ans = answers[currentQ];
   $('test-q-label').textContent = 'QUESTION ' + (currentQ+1) + ' OF ' + questions.length;
+  updateProgress(currentQ, questions.length);
 
   // Stimulus block
   const stimEl = $('test-stimulus');
@@ -500,17 +543,27 @@ function renderQuestion() {
   const area = $('test-answer-area');
   area.innerHTML = '';
 
+  const CHOICE_LETTERS = ['A','B','C','D','E','F'];
   if (q.type === 'mc') {
     const wrap = document.createElement('div');
     wrap.className = 'test-choices';
     q.choices.forEach((choice, i) => {
       const btn = document.createElement('button');
       btn.className = 'test-choice' + (ans === i ? ' selected' : '');
-      btn.textContent = choice;
+      const badge = document.createElement('span');
+      badge.className = 'choice-badge';
+      badge.textContent = CHOICE_LETTERS[i] || String(i + 1);
+      const text = document.createElement('span');
+      text.textContent = choice.replace(/^[A-F]\.\s*/i, '');
+      btn.appendChild(badge);
+      btn.appendChild(text);
       btn.addEventListener('click', () => {
         answers[currentQ] = i;
-        area.querySelectorAll('.test-choice').forEach(b => b.classList.remove('selected'));
+        area.querySelectorAll('.test-choice').forEach(b => b.classList.remove('selected', 'correct-flash'));
         btn.classList.add('selected');
+        btn.classList.remove('correct-flash');
+        void btn.offsetWidth;
+        btn.classList.add('correct-flash');
         updateNavDot(currentQ);
       });
       wrap.appendChild(btn);
@@ -551,20 +604,18 @@ function renderQuestion() {
   renderMath($('test-q-text'));
   area.querySelectorAll('.test-choice, .test-tf-btn').forEach(el => renderMath(el));
 
-  // Standards strip — only when launched from a hub
+  // Standards strip — always shown
   const stdArea = $('test-standards-area');
   stdArea.innerHTML = '';
-  if (examSystem) {
-    const strip = document.createElement('div');
-    strip.className = 'q-standards';
-    strip.innerHTML = `
-      <div class="q-standards-label">📐 STANDARDS COVERED</div>
-      <div class="q-standards-list"><span style="font-size:11px;color:rgba(255,255,255,.2)">Loading…</span></div>
-      <div class="q-standards-sources"></div>
-    `;
-    stdArea.appendChild(strip);
-    renderStandardsForQuestion(strip, q.q, examSystem, examCourse, q.standardsDetail || []);
-  }
+  const strip = document.createElement('div');
+  strip.className = 'q-standards';
+  strip.innerHTML = `
+    <div class="q-standards-label">STANDARDS COVERED</div>
+    <div class="q-standards-list"><span style="font-size:11px;color:rgba(255,255,255,.2)">Loading…</span></div>
+    <div class="q-standards-sources"></div>
+  `;
+  stdArea.appendChild(strip);
+  renderStandardsForQuestion(strip, q.q, examSystem, examCourse, q.standardsDetail || []);
 }
 
 function buildNavGrid() {
@@ -830,7 +881,7 @@ async function renderStandardsForQuestion(strip, questionText, system, course, p
     standards = preloaded;
   } else if (['ap', 'sat', 'act'].includes(system)) {
     try {
-      const r = await fetch('https://pluto-server-production.up.railway.app/retrieve-standards', {
+      const r = await fetch('http://localhost:3000/retrieve-standards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: questionText, system, course, k: 2 }),
@@ -839,10 +890,11 @@ async function renderStandardsForQuestion(strip, questionText, system, course, p
       standards = data.standards || [];
     } catch { standards = []; }
   } else {
-    // IB / GCSE / A-Level — AI-aligned fallback
+    // Set-based / IB / GCSE / A-Level — AI-aligned fallback
+    const systemLabel = system ? system.toUpperCase() : 'academic';
     try {
       const res = await askAI({
-        message: `Generate 2 realistic ${system.toUpperCase()} standard codes and short names that this question would be testing. Reply ONLY as JSON: [{"code":"...","name":"...","description":"..."}]. Question: "${questionText}"`,
+        message: `Generate 2 realistic ${systemLabel} standard codes and short names that this question would be testing. Reply ONLY as JSON: [{"code":"...","name":"...","description":"..."}]. Question: "${questionText}"`,
         history: [],
       });
       const raw = (res && res.reply ? res.reply : '').replace(/```json|```/g, '').trim();
@@ -856,7 +908,7 @@ async function renderStandardsForQuestion(strip, questionText, system, course, p
 
   list.innerHTML = '';
   if (!standards.length) {
-    list.innerHTML = '<span style="font-size:11px;color:rgba(255,255,255,.2)">No standards retrieved.</span>';
+    strip.style.display = 'none';
     return;
   }
 

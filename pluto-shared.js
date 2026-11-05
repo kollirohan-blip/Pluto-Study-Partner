@@ -120,7 +120,7 @@ export function fmtNum(n) {
 // Fetch brain stats from the Pluto server
 export async function getBrainStats() {
   try {
-    const r = await fetch('https://pluto-server-production.up.railway.app/brain-stats');
+    const r = await fetch('http://localhost:3000/brain-stats');
     return await r.json();
   } catch {
     return { totalQuestions: 0, totalUsers: 0 };
@@ -139,7 +139,7 @@ export async function checkSubscription() {
   }
   try {
     const userId = await getUserId();
-    const r = await fetch('https://pluto-server-production.up.railway.app/check-subscription', {
+    const r = await fetch('http://localhost:3000/check-subscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId }),
@@ -213,7 +213,7 @@ export async function requirePremium(featureName = 'this feature') {
     const msg  = overlay.querySelector('#pw-code-msg');
     if (!code) return;
     try {
-      const r    = await fetch('https://pluto-server-production.up.railway.app/apply-discount-code', {
+      const r    = await fetch('http://localhost:3000/apply-discount-code', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, interval: 'monthly' }),
       });
@@ -235,7 +235,7 @@ export async function requirePremium(featureName = 'this feature') {
 
   async function startCheckout(interval) {
     try {
-      const r = await fetch('https://pluto-server-production.up.railway.app/create-checkout-session', {
+      const r = await fetch('http://localhost:3000/create-checkout-session', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, interval, couponId: activeCouponId }),
       });
@@ -264,18 +264,48 @@ export async function logActivity(icon, text) {
   await storage.set({ plutoActivity: plutoActivity.slice(0, 50) });
 }
 
-// ── Back button auto-wiring ────────────────────────────────
+// ── Theme management ──────────────────────────────────────
+export const THEME_KEY = 'pluto-theme';
+
+export function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  applyTheme(theme);
+}
+
+export function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem(THEME_KEY, theme);
+  document.querySelectorAll('.icon-sun').forEach(el => {
+    el.style.display = theme === 'dark' ? 'block' : 'none';
+  });
+  document.querySelectorAll('.icon-moon').forEach(el => {
+    el.style.display = theme === 'light' ? 'block' : 'none';
+  });
+}
+
+export function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+// ── Back button + theme toggle auto-wiring ────────────────────────────────
 // All pages import this module, so this runs everywhere.
 // Inline onclick="history.back()" is blocked by MV3 CSP (script-src 'self'),
 // and history.back() has no history anyway since pages open in new tabs.
 // This wires every .pluto-back-btn to navigate to the dashboard instead.
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     document.querySelectorAll('.pluto-back-btn').forEach(btn => {
       btn.removeAttribute('onclick');
       btn.addEventListener('click', () => {
         window.location.href = chrome.runtime.getURL('dashboard.html');
       });
+    });
+    document.querySelectorAll('.theme-toggle').forEach(btn => {
+      btn.addEventListener('click', toggleTheme);
     });
   }, { once: true });
 }

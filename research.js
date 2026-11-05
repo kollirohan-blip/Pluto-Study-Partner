@@ -1,5 +1,5 @@
 // ── CONFIG ────────────────────────────────────────────────────
-const API = 'https://pluto-server-production.up.railway.app';
+const API = 'http://localhost:3000';
 
 const STATE = {
   coins:     parseInt(localStorage.getItem('pq_coins') || '0'),

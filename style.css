@@ -16,6 +16,54 @@
   --gold:    #f0c060;
 }
 
+/* ── LIGHT MODE ─────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:     #FAFAF8;
+  --s1:     #F3F2EF;
+  --s2:     #ECEAE4;
+  --b1:     rgba(26,25,21,0.08);
+  --b2:     rgba(26,25,21,0.14);
+  --text:   #1A1915;
+  --dim:    #A09D97;
+  --mid:    #6B6860;
+  --accent: #2D6EFF;
+  --green:  #22C55E;
+  --blue:   #2D6EFF;
+  --red:    #EF4444;
+  --gold:   #F59E0B;
+}
+
+/* Fix hardcoded dark backgrounds for light mode */
+[data-theme="light"] #header        { background: var(--s1); }
+[data-theme="light"] #bottom-sheet  { background: var(--bg); border-color: var(--b2); }
+[data-theme="light"] #input-area    { background: var(--s1); }
+[data-theme="light"] #sheet-backdrop { background: rgba(26,25,21,0.4); }
+
+/* Fix hardcoded white text that becomes invisible on light bg */
+[data-theme="light"] .ai-bubble         { color: var(--text); }
+[data-theme="light"] .ai-bubble strong  { color: var(--text); }
+[data-theme="light"] .user-bubble       { color: var(--text); }
+[data-theme="light"] #user-input        { color: var(--text); }
+[data-theme="light"] .fc-txt            { color: var(--text); }
+[data-theme="light"] .test-q-box        { color: var(--text); }
+[data-theme="light"] .study-quiz-q      { color: var(--text); }
+[data-theme="light"] .study-title       { color: var(--text); }
+[data-theme="light"] .study-section-title { color: var(--text); }
+[data-theme="light"] .res-title         { color: var(--text); }
+[data-theme="light"] .study-gloss-term  { color: var(--text); }
+[data-theme="light"] .pod-title         { color: var(--text); }
+[data-theme="light"] .score-pct         { color: var(--text); }
+[data-theme="light"] .src-btn.on        { color: var(--text); }
+[data-theme="light"] .pill.on           { color: var(--text); }
+[data-theme="light"] .fmt-pill.on       { color: var(--text); }
+[data-theme="light"] .study-tab.active  { color: var(--text); }
+[data-theme="light"] .sh-gen-btn        { color: var(--text); }
+[data-theme="light"] .next-btn          { color: var(--text); }
+[data-theme="light"] .retry-btn         { color: var(--text); }
+[data-theme="light"] .sheet-close:hover { color: var(--text); }
+[data-theme="light"] .study-section-body { background: var(--s1); }
+[data-theme="light"] .feat-btn::after   { background: var(--s2); color: var(--text); border-color: var(--b2); }
+
 *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
 
 body {

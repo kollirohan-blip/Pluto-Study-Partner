@@ -1,307 +1,294 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <title>Pluto — Dashboard</title>
   <link rel="stylesheet" href="pluto-shared.css">
   <style>
-    body { overflow-x: hidden; background: #07070f; }
+    body { overflow-x: hidden; background: var(--bg-primary); padding-right: 60px; }
 
-    /* Grain overlay — adds depth, feels hand-made */
+    /* Subtle grain — adds tactile depth */
     body::after {
       content: '';
       position: fixed; inset: 0; z-index: 9999; pointer-events: none;
-      opacity: .028;
+      opacity: .018;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
       background-size: 180px;
-    }
-
-    /* Override shared bg to match #07070f */
-    .pluto-page-bg {
-      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,100,247,.08), transparent),
-                  radial-gradient(ellipse 60% 40% at 80% 60%, rgba(176,140,200,.04), transparent),
-                  #07070f;
     }
 
     #app {
       max-width: 960px;
       margin: 0 auto;
-      padding: 56px 32px 100px;
+      padding: 48px 32px 100px;
     }
 
-    /* ── Header tweaks ─────────────────────────────── */
-    .pluto-page-header { background: rgba(7,7,15,.6); border-color: rgba(255,255,255,.05); }
-
+    /* ── Header ──────────────────────────────────── */
     #date-display {
       font-size: 11px;
-      color: var(--dim);
-      font-family: 'DM Mono', monospace;
+      color: var(--text-tertiary);
+      font-family: 'JetBrains Mono', 'DM Mono', monospace;
       letter-spacing: .5px;
+      text-transform: uppercase;
     }
 
     #username-chip {
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      display: flex; align-items: center; gap: 6px;
       padding: 6px 13px;
-      background: rgba(255,255,255,.04);
-      border: 1px solid rgba(255,255,255,.07);
-      border-radius: 20px;
-      cursor: pointer;
-      font-size: 12px;
-      color: var(--text);
-      transition: all .18s;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-full);
+      cursor: pointer; font-size: 12px;
+      color: var(--text-primary);
+      transition: all var(--transition-fast);
+      font-family: 'Satoshi', 'DM Sans', system-ui, sans-serif;
     }
-    #username-chip:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.12); }
+    #username-chip:hover { background: var(--bg-tertiary); border-color: var(--border-default); }
     #username-chip input {
       background: transparent; border: none; outline: none;
-      color: #fff; font-size: 12px; font-family: 'DM Sans', sans-serif;
+      color: var(--text-primary); font-size: 12px;
+      font-family: 'Satoshi', 'DM Sans', system-ui, sans-serif;
       width: 90px;
     }
 
     /* ── Hero ──────────────────────────────────────── */
-    #hero {
-      padding: 48px 0 64px;
-    }
+    #hero { padding: 48px 0 56px; }
 
     .hero-eyebrow {
-      font-size: 11px;
-      letter-spacing: 2px;
-      color: var(--dim);
-      font-family: 'DM Mono', monospace;
-      margin-bottom: 16px;
+      font-size: 11px; letter-spacing: 2px;
+      color: var(--text-tertiary);
+      font-family: 'JetBrains Mono', 'DM Mono', monospace;
+      margin-bottom: 16px; text-transform: uppercase;
     }
 
     .hero-headline {
-      font-size: 68px;
-      font-weight: 300;
-      letter-spacing: -3px;
-      color: rgba(255,255,255,.9);
-      line-height: 1;
-      margin-bottom: 0;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      font-size: 56px; font-weight: 800;
+      letter-spacing: -2.5px;
+      color: var(--text-primary);
+      line-height: 1; margin-bottom: 0;
     }
-    .hero-headline .name {
-      font-weight: 700;
-      color: #fff;
-      display: inline-block;
-    }
-    /* Subtle underline that feels hand-drawn */
+    .hero-headline .name { font-weight: 800; }
     .hero-headline .name::after {
       content: '';
-      display: block;
-      height: 3px;
-      width: 100%;
-      margin-top: 4px;
-      background: linear-gradient(90deg, var(--accent), transparent 80%);
-      border-radius: 2px;
-      opacity: .5;
+      display: block; height: 4px; width: 100%;
+      margin-top: 6px;
+      background: linear-gradient(90deg, var(--accent-primary), transparent 80%);
+      border-radius: 2px; opacity: .55;
     }
 
-    /* Stat strip — numbers, no boxes */
+    /* Stat strip — big numbers, no boxes */
     .stat-strip {
-      display: flex;
-      align-items: center;
-      margin: 44px 0 28px;
-      gap: 0;
+      display: flex; align-items: center;
+      margin: 44px 0 28px; gap: 0;
     }
-    .stat-item {
-      flex: 1;
-      padding: 0 28px 0 0;
-    }
+    .stat-item { flex: 1; padding: 0 28px 0 0; }
     .stat-item + .stat-item {
       padding-left: 28px;
-      border-left: 1px solid rgba(255,255,255,.06);
+      border-left: 1px solid var(--border-subtle);
     }
     .stat-val {
       display: block;
-      font-size: 38px;
-      font-weight: 500;
-      font-family: 'DM Mono', monospace;
-      color: #fff;
-      line-height: 1;
-      letter-spacing: -1px;
+      font-size: 48px; font-weight: 800;
+      font-family: 'Cabinet Grotesk', 'Outfit', system-ui, sans-serif;
+      color: var(--text-primary);
+      line-height: 1; letter-spacing: -2px;
       transition: color .4s;
     }
-    .stat-val.blue  { color: #6b9fff; }
-    .stat-val.gold  { color: #e8b84b; }
-    .stat-val.green { color: #4fd98e; }
+    .stat-val.blue  { color: var(--accent-primary); }
+    .stat-val.gold  { color: var(--accent-gold); }
+    .stat-val.green { color: var(--accent-success); }
+    .stat-val.warm  { color: var(--accent-warm); }
     .stat-lbl {
       display: block;
-      font-size: 11px;
-      color: var(--mid);
-      margin-top: 6px;
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 400;
+      font-size: 10px; color: var(--text-tertiary);
+      margin-top: 5px;
+      font-family: 'JetBrains Mono', 'DM Mono', monospace;
+      letter-spacing: .5px; text-transform: uppercase;
     }
 
     /* Brain badge */
     .brain-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 10px;
-      color: #4fd98e;
-      font-family: 'DM Mono', monospace;
-      letter-spacing: 1.5px;
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 10px; color: var(--accent-success);
+      font-family: 'JetBrains Mono', 'DM Mono', monospace;
+      letter-spacing: 1.5px; text-transform: uppercase;
     }
-    .brain-badge.offline { color: var(--red); }
+    .brain-badge.offline { color: var(--accent-error); }
     .badge-dot {
       width: 5px; height: 5px; border-radius: 50%;
-      background: #4fd98e;
+      background: var(--accent-success);
       animation: blink 2.5s ease-in-out infinite;
     }
-    .brain-badge.offline .badge-dot { background: var(--red); animation: none; }
+    .brain-badge.offline .badge-dot { background: var(--accent-error); animation: none; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.15} }
 
-    /* ── Tip ───────────────────────────────────────── */
+    /* ── Install tip ───────────────────────────────── */
     #install-tip {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
+      display: flex; align-items: flex-start; gap: 12px;
       padding: 14px 18px;
-      background: rgba(79,142,247,.04);
-      border: 1px solid rgba(79,142,247,.1);
-      border-radius: 12px;
-      margin-bottom: 56px;
+      background: var(--accent-primary-light);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      margin-bottom: 52px;
     }
     .tip-ico  { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-    .tip-body { flex: 1; font-size: 12.5px; color: rgba(255,255,255,.5); line-height: 1.6; }
-    .tip-body strong { color: rgba(255,255,255,.75); font-weight: 500; }
+    .tip-body { flex: 1; font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; font-family: 'Satoshi', 'DM Sans', system-ui, sans-serif; }
+    .tip-body strong { color: var(--text-primary); font-weight: 600; }
     #tip-dismiss {
-      background: none; border: none; color: rgba(255,255,255,.2);
-      font-size: 14px; cursor: pointer; padding: 0; transition: color .15s;
+      background: none; border: none; color: var(--text-tertiary);
+      font-size: 14px; cursor: pointer; padding: 0;
+      transition: color var(--transition-fast);
       flex-shrink: 0; margin-top: 1px;
     }
-    #tip-dismiss:hover { color: rgba(255,255,255,.6); }
+    #tip-dismiss:hover { color: var(--text-primary); }
 
     /* ── Section label ─────────────────────────────── */
     .section-label {
-      font-size: 10px;
-      letter-spacing: 2px;
-      color: rgba(255,255,255,.18);
-      font-family: 'DM Mono', monospace;
-      text-transform: uppercase;
-      margin-bottom: 16px;
+      font-size: 10px; letter-spacing: 2px;
+      color: var(--text-tertiary);
+      font-family: 'JetBrains Mono', 'DM Mono', monospace;
+      text-transform: uppercase; margin-bottom: 16px;
     }
 
     /* ── Feature grid ───────────────────────────────── */
     #feat-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
-      gap: 10px;
-      margin-bottom: 60px;
+      gap: 10px; margin-bottom: 60px;
     }
 
-    @media (max-width: 760px) {
-      #feat-grid { grid-template-columns: repeat(3, 1fr); }
-    }
+    @media (max-width: 760px) { #feat-grid { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 480px) {
       #feat-grid { grid-template-columns: repeat(2, 1fr); }
-      .hero-headline { font-size: 44px; }
-      .stat-val { font-size: 28px; }
+      .hero-headline { font-size: 40px; letter-spacing: -2px; }
+      .stat-val { font-size: 36px; }
     }
 
     .feat-card {
-      background: rgba(255,255,255,.03);
-      border: 1px solid rgba(255,255,255,.065);
-      border-top: 2px solid transparent; /* overridden per-card by JS */
-      border-radius: 14px;
-      padding: 20px 16px 18px;
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
+      background: var(--bg-elevated);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius-lg);
+      padding: 18px 16px 16px;
+      cursor: pointer; position: relative; overflow: hidden;
       user-select: none;
       animation: pluto-fade-up .45s cubic-bezier(.16,1,.3,1) both;
-      transition: background .2s, border-color .2s, transform .2s cubic-bezier(.16,1,.3,1), box-shadow .2s;
+      transition: background var(--transition-base), border-color var(--transition-base),
+                  box-shadow var(--transition-base);
+      box-shadow: var(--shadow-sm);
+      will-change: transform;
     }
     .feat-card:hover {
-      background: rgba(255,255,255,.055);
-      transform: translateY(-3px);
-      box-shadow: 0 10px 28px rgba(0,0,0,.5);
+      border-color: var(--border-default);
+      box-shadow: var(--shadow-md);
     }
-    .feat-card:active { transform: translateY(-1px) scale(.97); transition-duration: .08s; }
+    .feat-card:active { transform: scale(.97) !important; transition-duration: .08s; }
 
-    .feat-icon {
-      font-size: 26px;
-      line-height: 1;
-      display: block;
-      margin-bottom: 12px;
-    }
+    /* Primary cards — larger, more prominent */
+    .feat-card-primary { padding: 24px 20px 20px; }
+
+    .feat-icon { display: block; width: 24px; height: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+    .feat-icon svg { width: 100%; height: 100%; }
+    .feat-card-primary .feat-icon { width: 28px; height: 28px; margin-bottom: 16px; }
+    .feat-card:hover .feat-icon { color: var(--text-primary); }
+
     .feat-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: rgba(255,255,255,.9);
-      margin-bottom: 4px;
-      letter-spacing: -.1px;
+      font-size: 15px; font-weight: 700;
+      color: var(--text-primary); margin-bottom: 6px;
+      font-family: 'Satoshi', 'DM Sans', system-ui, sans-serif;
+      letter-spacing: -.2px;
     }
+    .feat-card-primary .feat-name { font-size: 17px; letter-spacing: -.3px; }
+
     .feat-desc {
-      font-size: 11px;
-      color: rgba(255,255,255,.32);
-      line-height: 1.5;
+      font-size: 12px; color: var(--text-tertiary); line-height: 1.55;
+      font-family: 'Satoshi', 'DM Sans', system-ui, sans-serif;
     }
+    .feat-card-primary .feat-desc { font-size: 13px; }
 
-    /* Live indicator: small dot next to name */
     .feat-live-dot {
-      display: inline-block;
-      width: 5px; height: 5px;
-      border-radius: 50%;
-      background: #4fd98e;
-      margin-left: 5px;
-      vertical-align: middle;
-      position: relative;
-      top: -1px;
+      display: inline-block; width: 5px; height: 5px;
+      border-radius: 50%; background: var(--accent-success);
+      margin-left: 5px; vertical-align: middle;
+      position: relative; top: -1px;
     }
 
-    /* Arrow that appears on hover */
     .feat-arrow {
-      position: absolute;
-      bottom: 16px;
-      right: 16px;
-      font-size: 14px;
-      color: rgba(255,255,255,.15);
-      transition: color .2s, transform .2s;
+      position: absolute; bottom: 14px; right: 14px;
+      font-size: 14px; color: var(--text-tertiary);
+      transition: color var(--transition-base), transform var(--transition-base);
     }
-    .feat-card:hover .feat-arrow {
-      color: rgba(255,255,255,.5);
-      transform: translate(2px, -2px);
-    }
+    .feat-card:hover .feat-arrow { color: var(--accent-primary); transform: translate(2px, -2px); }
 
     /* ── Activity ───────────────────────────────────── */
-    #activity-list {
-      display: flex;
-      flex-direction: column;
-      margin-bottom: 64px;
-    }
+    #activity-list { display: flex; flex-direction: column; margin-bottom: 64px; }
 
     .act-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      display: flex; align-items: center; gap: 12px;
       padding: 12px 0;
-      border-bottom: 1px solid rgba(255,255,255,.04);
+      border-bottom: 1px solid var(--border-subtle);
       animation: pluto-fade-up .35s cubic-bezier(.16,1,.3,1) both;
     }
-    .act-item:first-child { border-top: 1px solid rgba(255,255,255,.04); }
-    .act-icon { font-size: 15px; flex-shrink: 0; opacity: .7; }
-    .act-text { flex: 1; font-size: 13px; color: rgba(255,255,255,.55); }
-    .act-time { font-size: 10px; color: rgba(255,255,255,.2); font-family: 'DM Mono', monospace; white-space: nowrap; }
+    .act-item:first-child { border-top: 1px solid var(--border-subtle); }
+    .act-icon { font-size: 15px; flex-shrink: 0; opacity: .8; }
+    .act-text { flex: 1; font-size: 13px; color: var(--text-secondary); font-family: 'Satoshi', 'DM Sans', system-ui, sans-serif; }
+    .act-time { font-size: 10px; color: var(--text-tertiary); font-family: 'JetBrains Mono', 'DM Mono', monospace; white-space: nowrap; }
 
     .act-empty {
-      padding: 32px 0;
-      font-size: 13px;
-      color: rgba(255,255,255,.2);
+      padding: 32px 0; font-size: 13px; color: var(--text-tertiary);
       font-style: italic;
-      border-top: 1px solid rgba(255,255,255,.04);
-      border-bottom: 1px solid rgba(255,255,255,.04);
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      font-family: 'Satoshi', 'DM Sans', system-ui, sans-serif;
     }
 
-    /* ── Footer ─────────────────────────────────────── */
-    #dash-footer {
-      font-size: 11px;
-      color: rgba(255,255,255,.12);
-      font-family: 'DM Mono', monospace;
-      letter-spacing: .5px;
+    /* ── Continue section ─────────────────────────────── */
+    #continue-section { margin-bottom: 32px; }
+    .continue-card {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 18px; background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle); border-radius: 12px;
+      margin-bottom: 8px; transition: all 0.15s; cursor: pointer;
+    }
+    .continue-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); border-color: var(--border-default); }
+    .continue-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); flex-shrink: 0; }
+    .continue-icon svg { width: 20px; height: 20px; }
+    .continue-info { flex: 1; min-width: 0; }
+    .continue-title { font-size: 13px; font-weight: 600; color: var(--text-primary); font-family: 'Satoshi', 'DM Sans', system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .continue-time  { font-size: 10px; color: var(--text-tertiary); font-family: 'JetBrains Mono', 'DM Mono', monospace; margin-top: 2px; }
+    .continue-btn   { margin-left: auto; padding: 6px 14px; background: var(--accent-primary); color: #fff; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: 'Plus Jakarta Sans', system-ui; white-space: nowrap; flex-shrink: 0; }
+    .continue-btn:hover { filter: brightness(1.1); }
+
+    /* ── Content row ────────────────────────────────── */
+    .dash-content-row {
+      display: grid; grid-template-columns: 1fr auto;
+      gap: 16px; margin-bottom: 48px; align-items: start;
+    }
+
+    /* ── Stat cards ─────────────────────────────────── */
+    .stat-cards-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .stat-card { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 18px; }
+    .stat-card-val   { font-size: 28px; font-weight: 800; color: var(--text-primary); font-family: 'Plus Jakarta Sans', system-ui; letter-spacing: -1px; }
+    .stat-card-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; font-weight: 500; font-family: 'Satoshi', 'DM Sans', system-ui, sans-serif; }
+    .stat-card-sub   { font-size: 11px; color: var(--accent-success); margin-top: 2px; font-family: 'JetBrains Mono', 'DM Mono', monospace; }
+
+    /* ── Spacing for Continue + Overview labels ─────── */
+    #continue-section .section-label,
+    .dash-content-row > div > .section-label { margin-top: 28px; }
+
+    /* ── Goal ring card ─────────────────────────────── */
+    .goal-card { display: flex; flex-direction: column; align-items: center; width: 172px; }
+    .goal-ring-wrap  { position: relative; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; }
+    .goal-ring-inner { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+
+    /* Deep navy dark mode — warmer than pure black */
+    [data-theme="dark"] {
+      --bg-primary:  #0F1117;
+      --bg-elevated: #161820;
+      --bg-tertiary: #1E2130;
     }
   </style>
 </head>
@@ -330,14 +317,28 @@
           </linearGradient>
         </defs>
       </svg>
-      <span class="pluto-page-title" style="font-size:13px">PLUTO</span>
+      <span class="pluto-page-title">PLUTO</span>
     </div>
 
     <span id="date-display"></span>
 
-    <div id="username-chip" title="Click to change name">
-      <span style="opacity:.5">👤</span>
-      <span id="username-display">—</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div id="username-chip" title="Click to change name">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5;flex-shrink:0"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <span id="username-display">—</span>
+      </div>
+      <button class="btn-icon theme-toggle" title="Toggle theme" aria-label="Toggle light/dark mode">
+        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
     </div>
   </header>
 
@@ -359,8 +360,8 @@
           <span class="stat-lbl">total xp</span>
         </div>
         <div class="stat-item">
-          <span class="stat-val green" id="stat-streak">—</span>
-          <span class="stat-lbl">day streak 🔥</span>
+          <span class="stat-val warm" id="stat-streak">—</span>
+          <span class="stat-lbl">day streak</span>
         </div>
       </div>
 
@@ -370,29 +371,57 @@
       </div>
     </section>
 
-    <!-- Tip -->
-    <div id="install-tip">
-      <span class="tip-ico">📌</span>
-      <div class="tip-body">
-        <strong>Pin Pluto to your toolbar</strong> for one-click access — click the puzzle piece in Chrome, find Pluto, and hit the pin.
-      </div>
-      <button id="tip-dismiss">✕</button>
+    <!-- Continue -->
+    <div id="continue-section" style="display:none">
+      <div class="section-label">Continue</div>
+      <div id="continue-list"></div>
     </div>
 
-    <!-- Features -->
-    <div class="section-label">Features</div>
-    <div id="feat-grid"></div>
-
-    <!-- Activity -->
-    <div class="section-label">Recent activity</div>
-    <div id="activity-list"></div>
-
-    <!-- Footer -->
-    <div id="dash-footer">pluto · ai study partner</div>
+    <!-- Stat cards + Goal ring -->
+    <div class="dash-content-row">
+      <div>
+        <div class="section-label">Overview</div>
+        <div class="stat-cards-row">
+          <div class="stat-card">
+            <div class="stat-card-val" id="brain-size-big">0</div>
+            <div class="stat-card-label">Shared Brain Questions</div>
+            <div class="stat-card-sub">+12 this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-val" id="week-questions">0</div>
+            <div class="stat-card-label">Questions This Week</div>
+            <div class="stat-card-sub">Keep going</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-val" id="courses-studied">0</div>
+            <div class="stat-card-label">AP Courses Studied</div>
+            <div class="stat-card-sub">of 38 available</div>
+          </div>
+        </div>
+      </div>
+      <div class="stat-card goal-card">
+        <div class="section-label" style="margin-bottom:14px">Daily Goal</div>
+        <div class="goal-ring-wrap">
+          <svg width="100" height="100" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="36" fill="none" stroke="var(--bg-tertiary)" stroke-width="8"/>
+            <circle id="goal-ring-fill" cx="50" cy="50" r="36" fill="none"
+              stroke="var(--accent-primary)" stroke-width="8"
+              stroke-linecap="round"
+              transform="rotate(-90 50 50)"
+              style="transition: stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)"/>
+          </svg>
+          <div class="goal-ring-inner">
+            <span id="goal-xp-text" style="font-size:22px;font-weight:800;color:var(--text-primary)">0</span>
+            <span style="font-size:10px;color:var(--text-tertiary);font-family:'JetBrains Mono',monospace">/ <span id="goal-xp-max">100</span> XP</span>
+          </div>
+        </div>
+      </div>
+    </div>
 
   </div>
 </div>
 
 <script type="module" src="dashboard.js"></script>
+<script src="sidebar.js"></script>
 </body>
 </html>
